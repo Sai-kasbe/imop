@@ -11,24 +11,20 @@ if "voted_users" not in st.session_state:
 if "results_released" not in st.session_state:
     st.session_state["results_released"] = False
 if "page" not in st.session_state:
-    st.session_state["page"] = "home"  # Options: home, login, register
+    st.session_state["page"] = "home"
 
-# Home page to select login or registration
+# Function: Home Page
 def home_page():
     st.title("Online Election System")
+    st.write("Welcome! Please choose an option:")
+    if st.button("Login"):
+        st.session_state["page"] = "login"
+        st.stop()
+    if st.button("Register"):
+        st.session_state["page"] = "register"
+        st.stop()
 
-    col1, col2 = st.columns(2)
-    with col1:
-        if st.button("Login"):
-            st.session_state["page"] = "login"
-            st.experimental_rerun()
-
-    with col2:
-        if st.button("Register"):
-            st.session_state["page"] = "register"
-            st.experimental_rerun()
-
-# Registration page
+# Function: Registration Page
 def register_page():
     st.title("Register")
     username = st.text_input("Choose a Username")
@@ -41,15 +37,15 @@ def register_page():
             st.error("Both fields are required.")
         else:
             st.session_state["users"][username] = password
-            st.success("Registration successful! Please log in.")
+            st.success("Registration successful! Please proceed to login.")
             st.session_state["page"] = "login"
-            st.experimental_rerun()
+            st.stop()
 
     if st.button("Back to Home"):
         st.session_state["page"] = "home"
-        st.experimental_rerun()
+        st.stop()
 
-# Login page
+# Function: Login Page
 def login_page():
     st.title("Login")
     username = st.text_input("Username")
@@ -59,15 +55,17 @@ def login_page():
         if username in st.session_state["users"] and st.session_state["users"][username] == password:
             st.session_state["logged_in_user"] = username
             st.session_state["is_admin"] = (username == "admin")
-            st.experimental_rerun()
+            st.session_state["page"] = "admin" if username == "admin" else "user"
+            st.success(f"Welcome, {username}!")
+            st.stop()
         else:
             st.error("Invalid username or password")
 
     if st.button("Back to Home"):
         st.session_state["page"] = "home"
-        st.experimental_rerun()
+        st.stop()
 
-# Admin panel
+# Function: Admin Panel
 def admin_panel():
     st.title("Admin Panel")
 
@@ -95,9 +93,7 @@ def admin_panel():
 
     st.subheader("Results")
     if st.session_state["voting_data"]:
-        results = pd.DataFrame(
-            list(st.session_state["voting_data"].items()), columns=["Party", "Votes"]
-        )
+        results = pd.DataFrame(list(st.session_state["voting_data"].items()), columns=["Party", "Votes"])
         st.table(results)
     else:
         st.write("No voting data available.")
@@ -106,9 +102,9 @@ def admin_panel():
         st.session_state.pop("logged_in_user", None)
         st.session_state.pop("is_admin", None)
         st.session_state["page"] = "home"
-        st.experimental_rerun()
+        st.stop()
 
-# User panel
+# Function: User Panel
 def user_panel():
     st.title("User Panel")
 
@@ -128,18 +124,16 @@ def user_panel():
 
     if st.session_state["results_released"]:
         st.subheader("Election Results")
-        results = pd.DataFrame(
-            list(st.session_state["voting_data"].items()), columns=["Party", "Votes"]
-        )
+        results = pd.DataFrame(list(st.session_state["voting_data"].items()), columns=["Party", "Votes"])
         st.table(results)
 
     if st.button("Logout"):
         st.session_state.pop("logged_in_user", None)
         st.session_state.pop("is_admin", None)
         st.session_state["page"] = "home"
-        st.experimental_rerun()
+        st.stop()
 
-# Main logic
+# Route to the correct page
 if "logged_in_user" not in st.session_state:
     if st.session_state["page"] == "home":
         home_page()
