@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 
-# Initialize session state if not already initialized
+# Initialize session state
 if "users" not in st.session_state:
     st.session_state["users"] = {"admin": "admin123"}  # Default admin
 if "voting_data" not in st.session_state:
@@ -10,12 +10,48 @@ if "voted_users" not in st.session_state:
     st.session_state["voted_users"] = []
 if "results_released" not in st.session_state:
     st.session_state["results_released"] = False
+if "page" not in st.session_state:
+    st.session_state["page"] = "home"  # Options: home, login, register
 
-# Function to display login page
-def login_page():
+# Home page to select login or registration
+def home_page():
     st.title("Online Election System")
-    st.subheader("Login")
 
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("Login"):
+            st.session_state["page"] = "login"
+            st.experimental_rerun()
+
+    with col2:
+        if st.button("Register"):
+            st.session_state["page"] = "register"
+            st.experimental_rerun()
+
+# Registration page
+def register_page():
+    st.title("Register")
+    username = st.text_input("Choose a Username")
+    password = st.text_input("Choose a Password", type="password")
+
+    if st.button("Register"):
+        if username in st.session_state["users"]:
+            st.error("Username already exists. Try a different one.")
+        elif not username or not password:
+            st.error("Both fields are required.")
+        else:
+            st.session_state["users"][username] = password
+            st.success("Registration successful! Please log in.")
+            st.session_state["page"] = "login"
+            st.experimental_rerun()
+
+    if st.button("Back to Home"):
+        st.session_state["page"] = "home"
+        st.experimental_rerun()
+
+# Login page
+def login_page():
+    st.title("Login")
     username = st.text_input("Username")
     password = st.text_input("Password", type="password")
 
@@ -27,11 +63,14 @@ def login_page():
         else:
             st.error("Invalid username or password")
 
-# Function for admin panel
+    if st.button("Back to Home"):
+        st.session_state["page"] = "home"
+        st.experimental_rerun()
+
+# Admin panel
 def admin_panel():
     st.title("Admin Panel")
 
-    # Option to add parties
     st.subheader("Add Parties")
     new_party = st.text_input("Enter Party Name")
     if st.button("Add Party"):
@@ -44,19 +83,16 @@ def admin_panel():
         else:
             st.error("Party name cannot be empty")
 
-    # Display current parties
     st.write("### Current Parties:")
     if st.session_state["voting_data"]:
         st.write(list(st.session_state["voting_data"].keys()))
     else:
         st.write("No parties added yet.")
 
-    # Release results to users
     if st.button("Release Results to Users"):
         st.session_state["results_released"] = True
         st.success("Results released to users.")
 
-    # View results
     st.subheader("Results")
     if st.session_state["voting_data"]:
         results = pd.DataFrame(
@@ -69,16 +105,16 @@ def admin_panel():
     if st.button("Logout"):
         st.session_state.pop("logged_in_user", None)
         st.session_state.pop("is_admin", None)
+        st.session_state["page"] = "home"
         st.experimental_rerun()
 
-# Function for user panel
+# User panel
 def user_panel():
     st.title("User Panel")
 
     if st.session_state["logged_in_user"] in st.session_state["voted_users"]:
         st.warning("You have already cast your vote.")
     else:
-        # Voting section
         st.subheader("Cast Your Vote")
         parties = list(st.session_state["voting_data"].keys())
         if parties:
@@ -90,7 +126,6 @@ def user_panel():
         else:
             st.warning("No parties available for voting.")
 
-    # Display results if released
     if st.session_state["results_released"]:
         st.subheader("Election Results")
         results = pd.DataFrame(
@@ -101,11 +136,17 @@ def user_panel():
     if st.button("Logout"):
         st.session_state.pop("logged_in_user", None)
         st.session_state.pop("is_admin", None)
+        st.session_state["page"] = "home"
         st.experimental_rerun()
 
-# Main application logic
+# Main logic
 if "logged_in_user" not in st.session_state:
-    login_page()
+    if st.session_state["page"] == "home":
+        home_page()
+    elif st.session_state["page"] == "login":
+        login_page()
+    elif st.session_state["page"] == "register":
+        register_page()
 else:
     if st.session_state.get("is_admin", False):
         admin_panel()
