@@ -1,4 +1,5 @@
-import streamlit as st import pandas as pd
+import streamlit as st 
+import pandas as pd
 
 Initialize session state if not already initialized
 
