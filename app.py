@@ -58,3 +58,54 @@ def get_candidates_by_role(role):
     return [row[0] for row in cursor.fetchall()]
 
 def cast_vote(roll_no, candidate_name):
+    cursor.execute('SELECT has_voted FROM users WHERE roll_no=?', (roll_no,))
+    result = cursor.fetchone()
+    if result and result[0] == 1:
+        return False
+    cursor.execute('UPDATE candidates SET votes = votes + 1 WHERE candidate_name=?', (candidate_name,))
+    cursor.execute('UPDATE users SET has_voted = 1 WHERE roll_no=?', (roll_no,))
+    conn.commit()
+    return True
+
+def has_voted(roll_no):
+    cursor.execute('SELECT has_voted FROM users WHERE roll_no=?', (roll_no,))
+    result = cursor.fetchone()
+    return result and result[0] == 1
+
+def get_results():
+    cursor.execute('SELECT candidate_name, role, votes FROM candidates ORDER BY role, votes DESC')
+    return cursor.fetchall()
+
+def get_all_users():
+    cursor.execute('SELECT roll_no, name, has_voted FROM users')
+    return cursor.fetchall()
+
+# === STREAMLIT INTERFACE ===
+
+create_tables()
+
+if "page" not in st.session_state:
+    st.session_state["page"] = "home"
+if "logged_in_user" not in st.session_state:
+    st.session_state["logged_in_user"] = None
+if "is_admin" not in st.session_state:
+    st.session_state["is_admin"] = False
+if "results_released" not in st.session_state:
+    st.session_state["results_released"] = False
+if "result_date" not in st.session_state:
+    st.session_state["result_date"] = ""
+
+st.markdown("""
+    <style>
+        body { background-color: #001f3f; color: white; }
+        .title { color: #FFDC00; font-size: 36px; text-align: center; }
+        .subtitle { color: #7FDBFF; font-size: 24px; text-align: center; }
+        .status-red { color: red; font-weight: bold; }
+        .status-green { color: lightgreen; font-weight: bold; }
+    </style>
+""", unsafe_allow_html=True)
+
+# You can now continue with UI logic using updated fields and buttons...
+# Use st.file_uploader for images, st.date_input for result scheduling, etc.
+# Send password recovery emails with SMTP setup (not included in this snippet).
+# You may request the next part (admin panel, user panel, or forgot password flow).
