@@ -236,9 +236,9 @@ def user_registration():
                 st.error("User with this roll number already exists!")
         except Exception as e:
             st.error(f"Error: {e}")
-
         finally:
-            conn.close()
+            pass
+            
 
 # ====== FORGOT PASSWORD ======
 def forgot_password():
