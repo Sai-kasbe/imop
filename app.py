@@ -3,7 +3,10 @@ import pandas as pd
 import sqlite3
 
 # ===== DATABASE CONNECTION =====
-conn = sqlite3.connect('voting_app.db', check_same_thread=False)
+def get_connection():
+    return sqlite3.connect('voting_app.db', check_same_thread=False)
+
+conn = get_connection()
 cursor = conn.cursor()
 
 # ===== TABLE CREATION =====
@@ -61,7 +64,8 @@ def get_candidates_by_role(role):
 
 def cast_vote(roll_no, candidate_name):
     cursor.execute('SELECT has_voted FROM users WHERE roll_no=?', (roll_no,))
-    if cursor.fetchone()[0] == 1:
+    result = cursor.fetchone()
+    if result and result[0] == 1:
         return False
     cursor.execute('UPDATE candidates SET votes = votes + 1 WHERE candidate_name=?', (candidate_name,))
     cursor.execute('UPDATE users SET has_voted = 1 WHERE roll_no=?', (roll_no,))
@@ -70,27 +74,27 @@ def cast_vote(roll_no, candidate_name):
 
 def has_voted(roll_no):
     cursor.execute('SELECT has_voted FROM users WHERE roll_no=?', (roll_no,))
-    return cursor.fetchone()[0] == 1
+    result = cursor.fetchone()
+    return result and result[0] == 1
 
 def get_results():
     cursor.execute('SELECT candidate_name, role, votes FROM candidates ORDER BY role, votes DESC')
     return cursor.fetchall()
 
 def get_all_users():
-    cursor.execute('SELECT roll_no, name, has_voted FROM users')
-    return cursor.fetchall()
+    try:
+        cursor.execute('SELECT roll_no, name, has_voted FROM users')
+        return cursor.fetchall()
+    except sqlite3.OperationalError as e:
+        print(f"Database error: {e}")
+        return []
 
 # ===== STREAMLIT STATE =====
-if "page" not in st.session_state:
-    st.session_state["page"] = "home"
-if "logged_in_user" not in st.session_state:
-    st.session_state["logged_in_user"] = None
-if "is_admin" not in st.session_state:
-    st.session_state["is_admin"] = False
-if "results_released" not in st.session_state:
-    st.session_state["results_released"] = False
-if "result_date" not in st.session_state:
-    st.session_state["result_date"] = ""
+st.session_state.setdefault("page", "home")
+st.session_state.setdefault("logged_in_user", None)
+st.session_state.setdefault("is_admin", False)
+st.session_state.setdefault("results_released", False)
+st.session_state.setdefault("result_date", "")
 
 # ===== UI STYLE =====
 st.markdown("""
@@ -157,20 +161,8 @@ def login_user():
 
 def admin_panel():
     st.header("Admin Dashboard")
-    with st.expander("📥 Add Candidate"):
-        cname = st.text_input("Candidate Name")
-        roll = st.text_input("Roll No")
-        dept = st.text_input("Department")
-        year = st.text_input("Year/Semester")
-        role = st.selectbox("Role", ["President", "Vice-President", "Secretary", "Treasury"])
-        image = st.text_input("Image URL")
-        if st.button("Add Candidate"):
-            if add_candidate(cname, roll, dept, year, role, image):
-                st.success("Candidate added.")
-            else:
-                st.error("Candidate already exists.")
-
     st.subheader("📊 Election Results")
+    
     if st.button("Release Results"):
         st.session_state["results_released"] = True
         st.success("Results released!")
@@ -185,54 +177,21 @@ def admin_panel():
     df_users["Status"] = df_users["Status"].apply(lambda x: "✅ Voted" if x else "❌ Not Voted")
     st.dataframe(df_users)
 
-    if st.button("Logout"):
-        st.session_state["page"] = "home"
-        st.session_state["logged_in_user"] = None
-        st.session_state["is_admin"] = False
-
 def user_panel():
     st.header("User Dashboard")
     roll = st.session_state["logged_in_user"]
     voted = has_voted(roll)
     status = "✅ Voted" if voted else "❌ Not Voted"
-    color_class = "status-green" if voted else "status-red"
-    st.markdown(f"<p class='{color_class}'>Status: {status}</p>", unsafe_allow_html=True)
-
-    if not voted:
-        role = st.selectbox("Choose Role to Vote", ["President", "Vice-President", "Secretary", "Treasury"])
-        options = get_candidates_by_role(role)
-        if options:
-            candidate = st.selectbox("Select Candidate", options)
-            if st.button("Cast Vote"):
-                if cast_vote(roll, candidate):
-                    st.success("Vote recorded!")
-                    st.rerun()
-                else:
-                    st.error("You have already voted.")
-        else:
-            st.info("No candidates for selected role.")
-    else:
-        st.info("You have already voted.")
-
-    if st.session_state["results_released"]:
-        st.subheader("🗳️ Results")
-        results = pd.DataFrame(get_results(), columns=["Candidate", "Role", "Votes"])
-        st.dataframe(results)
-
-    if st.button("Logout"):
-        st.session_state["page"] = "home"
-        st.session_state["logged_in_user"] = None
+    st.markdown(f"<p class={'status-green' if voted else 'status-red'}>Status: {status}</p>", unsafe_allow_html=True)
 
 # ===== ROUTING =====
-if st.session_state["page"] == "home":
-    home_page()
-elif st.session_state["page"] == "register":
-    register_user()
-elif st.session_state["page"] == "login_admin":
-    login_admin()
-elif st.session_state["page"] == "login_user":
-    login_user()
-elif st.session_state["page"] == "admin":
-    admin_panel()
-elif st.session_state["page"] == "user":
-    user_panel()
+page_mapping = {
+    "home": home_page,
+    "register": register_user,
+    "login_admin": login_admin,
+    "login_user": login_user,
+    "admin": admin_panel,
+    "user": user_panel
+}
+
+page_mapping.get(st.session_state["page"], home_page)()
