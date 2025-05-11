@@ -48,7 +48,20 @@ def add_user(name, email, roll_no):
         """, (name, email, roll_no))
 
         conn.commit()
+        print(f"User {name} added successfully.")
     except sqlite3.IntegrityError as e:
         print(f"Error adding user: {e}")
     finally:
         conn.close()
+
+# Example usage
+if __name__ == "__main__":
+    # Ensure the users table exists
+    create_users_table()
+    
+    # Add example users
+    try:
+        add_user("John Doe", "john.doe@example.com", "12345")
+        add_user("Jane Doe", "jane.doe@example.com", "67890")
+    except TypeError as e:
+        print(f"Function call error: {e}")
