@@ -4,90 +4,123 @@ import sqlite3
 
 # ===== DATABASE CONNECTION =====
 def get_connection():
-    return sqlite3.connect('voting_app.db', check_same_thread=False)
-
-conn = get_connection()
-cursor = conn.cursor()
+    conn = sqlite3.connect('voting_app.db', check_same_thread=False)
+    return conn, conn.cursor()
 
 # ===== TABLE CREATION =====
 def create_tables():
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS users (
-            roll_no TEXT PRIMARY KEY,
-            name TEXT,
-            password TEXT,
-            email TEXT,
-            phone TEXT,
-            image TEXT,
-            has_voted INTEGER DEFAULT 0
-        )
-    ''')
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS candidates (
-            candidate_name TEXT,
-            roll_no TEXT PRIMARY KEY,
-            department TEXT,
-            year_sem TEXT,
-            role TEXT,
-            image TEXT,
-            votes INTEGER DEFAULT 0
-        )
-    ''')
-    conn.commit()
+    conn, cursor = get_connection()
+    try:
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS users (
+                roll_no TEXT PRIMARY KEY,
+                name TEXT,
+                password TEXT,
+                email TEXT,
+                phone TEXT,
+                image TEXT,
+                has_voted INTEGER DEFAULT 0
+            )
+        ''')
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS candidates (
+                candidate_name TEXT,
+                roll_no TEXT PRIMARY KEY,
+                department TEXT,
+                year_sem TEXT,
+                role TEXT,
+                image TEXT,
+                votes INTEGER DEFAULT 0
+            )
+        ''')
+        conn.commit()
+    except sqlite3.Error as e:
+        print(f"Database error: {e}")
+    finally:
+        conn.close()
 
 create_tables()
 
 # ===== DATABASE OPERATIONS =====
 def add_user(roll_no, name, password, email, phone, image):
+    conn, cursor = get_connection()
     try:
         cursor.execute('INSERT INTO users VALUES (?, ?, ?, ?, ?, ?, 0)', (roll_no, name, password, email, phone, image))
         conn.commit()
         return True
     except sqlite3.IntegrityError:
         return False
+    finally:
+        conn.close()
 
 def authenticate_user(roll_no, password):
-    cursor.execute('SELECT * FROM users WHERE roll_no=? AND password=?', (roll_no, password))
-    return cursor.fetchone() is not None
+    conn, cursor = get_connection()
+    try:
+        cursor.execute('SELECT * FROM users WHERE roll_no=? AND password=?', (roll_no, password))
+        return cursor.fetchone() is not None
+    finally:
+        conn.close()
 
 def add_candidate(candidate_name, roll_no, dept, year_sem, role, image):
+    conn, cursor = get_connection()
     try:
         cursor.execute('INSERT INTO candidates VALUES (?, ?, ?, ?, ?, ?, 0)', (candidate_name, roll_no, dept, year_sem, role, image))
         conn.commit()
         return True
     except sqlite3.IntegrityError:
         return False
+    finally:
+        conn.close()
 
 def get_candidates_by_role(role):
-    cursor.execute('SELECT candidate_name FROM candidates WHERE role=?', (role,))
-    return [row[0] for row in cursor.fetchall()]
+    conn, cursor = get_connection()
+    try:
+        cursor.execute('SELECT candidate_name FROM candidates WHERE role=?', (role,))
+        return [row[0] for row in cursor.fetchall()]
+    finally:
+        conn.close()
 
 def cast_vote(roll_no, candidate_name):
-    cursor.execute('SELECT has_voted FROM users WHERE roll_no=?', (roll_no,))
-    result = cursor.fetchone()
-    if result and result[0] == 1:
-        return False
-    cursor.execute('UPDATE candidates SET votes = votes + 1 WHERE candidate_name=?', (candidate_name,))
-    cursor.execute('UPDATE users SET has_voted = 1 WHERE roll_no=?', (roll_no,))
-    conn.commit()
-    return True
+    conn, cursor = get_connection()
+    try:
+        cursor.execute('SELECT has_voted FROM users WHERE roll_no=?', (roll_no,))
+        result = cursor.fetchone()
+        if result and result[0] == 1:
+            return False
+        cursor.execute('UPDATE candidates SET votes = votes + 1 WHERE candidate_name=?', (candidate_name,))
+        cursor.execute('UPDATE users SET has_voted = 1 WHERE roll_no=?', (roll_no,))
+        conn.commit()
+        return True
+    finally:
+        conn.close()
 
 def has_voted(roll_no):
-    cursor.execute('SELECT has_voted FROM users WHERE roll_no=?', (roll_no,))
-    result = cursor.fetchone()
-    return result and result[0] == 1
+    conn, cursor = get_connection()
+    try:
+        cursor.execute('SELECT has_voted FROM users WHERE roll_no=?', (roll_no,))
+        result = cursor.fetchone()
+        return result and result[0] == 1
+    finally:
+        conn.close()
 
 def get_results():
-    cursor.execute('SELECT candidate_name, role, votes FROM candidates ORDER BY role, votes DESC')
-    return cursor.fetchall()
+    conn, cursor = get_connection()
+    try:
+        cursor.execute('SELECT candidate_name, role, votes FROM candidates ORDER BY role, votes DESC')
+        return cursor.fetchall()
+    finally:
+        conn.close()
 
 def get_all_users():
+    conn, cursor = get_connection()
     try:
         cursor.execute('SELECT roll_no, name, has_voted FROM users')
         return cursor.fetchall()
     except sqlite3.OperationalError as e:
         print(f"Database error: {e}")
         return []
+    finally:
+        conn.close()
 
 # ===== STREAMLIT STATE =====
 st.session_state.setdefault("page", "home")
@@ -135,30 +168,6 @@ def register_user():
         else:
             st.warning("All fields are required.")
 
-def login_admin():
-    st.header("Admin Login")
-    username = st.text_input("Admin ID")
-    password = st.text_input("Password", type="password")
-    if st.button("Login"):
-        if username == "22QM1A6721" and password == "Sai7@99499":
-            st.session_state["logged_in_user"] = username
-            st.session_state["is_admin"] = True
-            st.session_state["page"] = "admin"
-        else:
-            st.error("Invalid admin credentials.")
-
-def login_user():
-    st.header("User Login")
-    roll_no = st.text_input("Roll Number")
-    password = st.text_input("Password", type="password")
-    if st.button("Login"):
-        if authenticate_user(roll_no, password):
-            st.session_state["logged_in_user"] = roll_no
-            st.session_state["is_admin"] = False
-            st.session_state["page"] = "user"
-        else:
-            st.error("Invalid credentials.")
-
 def admin_panel():
     st.header("Admin Dashboard")
     st.subheader("📊 Election Results")
@@ -177,21 +186,12 @@ def admin_panel():
     df_users["Status"] = df_users["Status"].apply(lambda x: "✅ Voted" if x else "❌ Not Voted")
     st.dataframe(df_users)
 
-def user_panel():
-    st.header("User Dashboard")
-    roll = st.session_state["logged_in_user"]
-    voted = has_voted(roll)
-    status = "✅ Voted" if voted else "❌ Not Voted"
-    st.markdown(f"<p class={'status-green' if voted else 'status-red'}>Status: {status}</p>", unsafe_allow_html=True)
-
 # ===== ROUTING =====
 page_mapping = {
     "home": home_page,
     "register": register_user,
     "login_admin": login_admin,
-    "login_user": login_user,
-    "admin": admin_panel,
-    "user": user_panel
+    "admin": admin_panel
 }
 
 page_mapping.get(st.session_state["page"], home_page)()
