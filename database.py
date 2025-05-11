@@ -36,21 +36,19 @@ def add_roll_no_column():
         conn.commit()
     conn.close()
 
-def add_user(name, email, roll_no):
-    """Add a new user to the users table."""
+def add_user(roll_no, name, password, email, phone, image):
+    """Add a new user to the users table with all required fields."""
     conn = connect_to_db()
     cursor = conn.cursor()
-
     try:
         cursor.execute("""
-            INSERT INTO users (name, email, roll_no)
-            VALUES (?, ?, ?)
-        """, (name, email, roll_no))
-
+            INSERT INTO users (roll_no, name, password, email, phone, image)
+            VALUES (?, ?, ?, ?, ?, ?)
+        """, (roll_no, name, password, email, phone, image))
         conn.commit()
-        print(f"User {name} added successfully.")
-    except sqlite3.IntegrityError as e:
-        print(f"Error adding user: {e}")
+        return True
+    except sqlite3.IntegrityError:
+        return False
     finally:
         conn.close()
 
@@ -61,7 +59,7 @@ if __name__ == "__main__":
     
     # Add example users
     try:
-        add_user("John Doe", "john.doe@example.com", "12345")
-        add_user("Jane Doe", "jane.doe@example.com", "67890")
+        add_user("12345", "John Doe", "hashed_password", "john@example.com", "1234567890", "path/to/image.jpg")
+        add_user("67890", "Jane Doe", "hashed_password", "jane@example.com", "0987654321", "path/to/image.jpg")
     except TypeError as e:
         print(f"Function call error: {e}")
