@@ -1,41 +1,34 @@
 import sqlite3
 
-def init_db():
+def create_tables():
     conn = sqlite3.connect("election.db")
     c = conn.cursor()
 
-    # Users table
     c.execute("""
-        CREATE TABLE IF NOT EXISTS users (
-            username TEXT PRIMARY KEY,
-            password TEXT NOT NULL,
-            voted INTEGER DEFAULT 0
-        )
+    CREATE TABLE IF NOT EXISTS users (
+        username TEXT PRIMARY KEY,
+        password TEXT
+    )
     """)
 
-    # Parties table
     c.execute("""
-        CREATE TABLE IF NOT EXISTS parties (
-            name TEXT PRIMARY KEY,
-            votes INTEGER DEFAULT 0
-        )
+    CREATE TABLE IF NOT EXISTS parties (
+        name TEXT PRIMARY KEY,
+        votes INTEGER DEFAULT 0
+    )
     """)
 
-    # Global flags
     c.execute("""
-        CREATE TABLE IF NOT EXISTS flags (
-            key TEXT PRIMARY KEY,
-            value TEXT
-        )
+    CREATE TABLE IF NOT EXISTS votes (
+        username TEXT PRIMARY KEY,
+        party TEXT
+    )
     """)
-
-    # Add default admin user if not exists
-    c.execute("INSERT OR IGNORE INTO users (username, password) VALUES (?, ?)", ("admin", "admin123"))
 
     conn.commit()
     conn.close()
 
-def register_user(username, password):
+def add_user(username, password):
     conn = sqlite3.connect("election.db")
     c = conn.cursor()
     try:
@@ -50,16 +43,16 @@ def register_user(username, password):
 def authenticate_user(username, password):
     conn = sqlite3.connect("election.db")
     c = conn.cursor()
-    c.execute("SELECT * FROM users WHERE username=? AND password=?", (username, password))
-    result = c.fetchone()
+    c.execute("SELECT * FROM users WHERE username = ? AND password = ?", (username, password))
+    user = c.fetchone()
     conn.close()
-    return result is not None
+    return user is not None
 
-def add_party(name):
+def add_party(party_name):
     conn = sqlite3.connect("election.db")
     c = conn.cursor()
     try:
-        c.execute("INSERT INTO parties (name) VALUES (?)", (name,))
+        c.execute("INSERT INTO parties (name, votes) VALUES (?, 0)", (party_name,))
         conn.commit()
         return True
     except sqlite3.IntegrityError:
@@ -75,27 +68,26 @@ def get_parties():
     conn.close()
     return parties
 
-def vote_party(name):
+def cast_vote(username, party):
     conn = sqlite3.connect("election.db")
     c = conn.cursor()
-    c.execute("UPDATE parties SET votes = votes + 1 WHERE name=?", (name,))
-    conn.commit()
-    conn.close()
+    try:
+        c.execute("INSERT INTO votes (username, party) VALUES (?, ?)", (username, party))
+        c.execute("UPDATE parties SET votes = votes + 1 WHERE name = ?", (party,))
+        conn.commit()
+        return True
+    except sqlite3.IntegrityError:
+        return False
+    finally:
+        conn.close()
 
-def set_user_voted(username):
+def has_voted(username):
     conn = sqlite3.connect("election.db")
     c = conn.cursor()
-    c.execute("UPDATE users SET voted=1 WHERE username=?", (username,))
-    conn.commit()
+    c.execute("SELECT * FROM votes WHERE username = ?", (username,))
+    voted = c.fetchone() is not None
     conn.close()
-
-def user_has_voted(username):
-    conn = sqlite3.connect("election.db")
-    c = conn.cursor()
-    c.execute("SELECT voted FROM users WHERE username=?", (username,))
-    result = c.fetchone()
-    conn.close()
-    return result and result[0] == 1
+    return voted
 
 def get_results():
     conn = sqlite3.connect("election.db")
@@ -104,18 +96,3 @@ def get_results():
     results = c.fetchall()
     conn.close()
     return results
-
-def release_results():
-    conn = sqlite3.connect("election.db")
-    c = conn.cursor()
-    c.execute("INSERT OR REPLACE INTO flags (key, value) VALUES ('results_released', '1')")
-    conn.commit()
-    conn.close()
-
-def results_are_released():
-    conn = sqlite3.connect("election.db")
-    c = conn.cursor()
-    c.execute("SELECT value FROM flags WHERE key='results_released'")
-    row = c.fetchone()
-    conn.close()
-    return row and row[0] == '1'
