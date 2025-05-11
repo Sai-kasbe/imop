@@ -169,12 +169,19 @@ def admin_dashboard():
                 st.success("Candidate Added!")
             except sqlite3.IntegrityError:
                 st.error("Candidate with this roll number already exists!")
+            finally:
+                conn.close()
 
     with tab2:
-        conn, _ = get_connection()
         st.subheader("All Registered Users")
-        df = pd.read_sql("SELECT roll_no, name, email, phone, has_voted FROM users", conn)
-        st.dataframe(df)
+        conn, cursor = get_connection()
+        try:
+            df = pd.read_sql("SELECT roll_no, name, email, phone, has_voted FROM users", conn)
+            st.dataframe(df)
+        except Exception as e:
+            st.error(f"Failed to load users: {e}")
+        finally:
+            conn.close()
 
     with tab3:
         conn, cursor = get_connection()
@@ -191,6 +198,7 @@ def admin_dashboard():
         result = cursor.execute("SELECT * FROM result_schedule").fetchone()
         if result:
             st.info(f"Scheduled Date: {result[1]} | Announced: {'Yes' if result[2] else 'No'}")
+        conn.close()
 
 # ====== REGISTRATION ======
 def user_registration():
