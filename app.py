@@ -37,19 +37,20 @@ def register_page():
     password = st.text_input("Choose a Password", type="password")
 
     if st.button("Register"):
-        if username in st.session_state["users"]:
-            st.error("Username already exists. Try a different one.")
-        elif not username or not password:
+        if not username or not password:
             st.error("Both fields are required.")
+        elif username in st.session_state["users"]:
+            st.error("Username already exists. Try a different one.")
         else:
             st.session_state["users"][username] = password
-            st.success("Registration successful! Please proceed to login.")
+            st.success("Registration successful! Redirecting to login...")
             st.session_state["page"] = "login"
-            st.stop()
+            st.experimental_rerun()  # ✅ rerun instead of st.stop()
 
     if st.button("Back to Home"):
         st.session_state["page"] = "home"
-        st.stop()
+        st.experimental_rerun()  # ✅ for navigation
+
 
 # Function: Login Page
 def login_page():
