@@ -1,11 +1,5 @@
 import streamlit as st
 import pandas as pd
-from database import (
-    init_db, register_user, authenticate_user,
-    add_party, get_parties, vote_party,
-    set_user_voted, user_has_voted, get_results,
-    release_results, results_are_released
-)
 
 init_db()
 
