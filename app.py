@@ -211,9 +211,9 @@ def admin_dashboard():
 def user_registration():
     st.subheader("📝 New User Registration")
     name = st.text_input("Full Name")
-    roll_no = st.int_input("Roll Number (Unique)")
+    roll_no = st.text_input("Roll Number (Unique)")
     email = st.text_input("Email")
-    phone = st.int_input("Phone")
+    phone = st.text_input("Phone")
     password = st.text_input("Password", type="password")
     image = st.file_uploader("Upload Image")
 
