@@ -135,10 +135,10 @@ def user_dashboard(user):
 # ====== ADMIN LOGIN ======
 def admin_login():
     st.subheader("🔐 Admin Login")
-    username = st.text_input("Admin ID")
-    password = st.text_input("Password", type="password")
+    username = st.text_input("Sai-kasbe")
+    password = st.text_input("Sai7@99499", type="password")
     if st.button("Login"):
-        if username == ADMIN_ID and hash_password(password) == ADMIN_PASS:
+        if username == Sai-kasbe and hash_password(Sai7@99499) == ADMIN_PASS:
             st.success("Admin Logged In!")
             admin_dashboard()
         else:
