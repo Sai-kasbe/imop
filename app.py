@@ -6,7 +6,7 @@ from database import (
     add_party, get_parties, vote_party, get_results
 )
 
-create_tables()  # ensure tables and admin account are set up
+create_tables()  # Ensure DB is initializedl̥
 
 # Initialize session state
 if "users" not in st.session_state:
