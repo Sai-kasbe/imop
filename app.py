@@ -155,21 +155,24 @@ def admin_dashboard():
         year_sem = st.text_input("Year/Sem")
         role = st.selectbox("Role", ["President", "Vice-President", "Secretary", "Treasurer"])
         image_file = st.file_uploader("Upload Image", type=["jpg", "png", "jpeg"])
+
         if st.button("Add Candidate"):
             if not all([name, roll_no, dept, year_sem, role, image_file]):
                 st.error("Please fill in all fields and upload an image.")
             else:
                 try:
-                    image_path = os.path.join("images", image_file.name)
                     os.makedirs("images", exist_ok=True)
+                    image_path = os.path.join("images", image_file.name)
                     with open(image_path, "wb") as f:
                         f.write(image_file.getbuffer())
-                     
+
                     conn, cursor = get_connection()
-                    cursor.execute("INSERT INTO candidates VALUES (?, ?, ?, ?, ?, ?, 0)",
-                                   (name, roll_no, dept, year_sem, role, image_path))
+                    cursor.execute(
+                        "INSERT INTO candidates (candidate_name, roll_no, department, year_sem, role, image, votes) VALUES (?, ?, ?, ?, ?, ?, 0)",
+                        (name, roll_no, dept, year_sem, role, image_path)
+                    )
                     conn.commit()
-                    st.success("Candidate Added!")
+                    st.success("Candidate Added Successfully!")
                 except sqlite3.IntegrityError:
                     st.error("Candidate with this roll number already exists!")
                 except Exception as e:
@@ -177,7 +180,6 @@ def admin_dashboard():
                 finally:
                     conn.close()
 
-    
     with tab2:
         st.subheader("All Registered Users")
         conn, cursor = get_connection()
@@ -216,19 +218,25 @@ def user_registration():
     password = st.text_input("Password", type="password")
     image = st.file_uploader("Upload Image")
     if st.button("Register"):
-        image_path = "images/" + image.name if image else ""
-        if image:
+        if not all([name, roll_no, email, phone, password, image]):
+            st.error("All fields including image are required.")
+            return
+        image_path = "images/" + image.name
+        try:
             os.makedirs("images", exist_ok=True)
             with open(image_path, "wb") as f:
                 f.write(image.getbuffer())
-        conn, cursor = get_connection()
-        try:
+            conn, cursor = get_connection()
             cursor.execute("INSERT INTO users VALUES (?, ?, ?, ?, ?, ?, 0)",
                            (roll_no, name, hash_password(password), email, phone, image_path))
             conn.commit()
             st.success("Registered successfully!")
         except sqlite3.IntegrityError:
             st.error("User with this roll number already exists!")
+        except Exception as e:
+            st.error(f"Error: {e}")
+        finally:
+            conn.close()
 
 # ====== FORGOT PASSWORD ======
 def forgot_password():
