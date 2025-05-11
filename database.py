@@ -19,6 +19,7 @@ def create_tables():
         votes INTEGER DEFAULT 0
     )
     """)
+    cur.execute("INSERT OR IGNORE INTO users (username, password) VALUES (?, ?)", ("admin", "admin123"))
     conn.commit()
     conn.close()
 
@@ -35,7 +36,7 @@ def authenticate_user(username, password):
     cur.execute("SELECT * FROM users WHERE username=? AND password=?", (username, password))
     result = cur.fetchone()
     conn.close()
-    return result
+    return result is not None
 
 def user_has_voted(username):
     conn = get_connection()
@@ -43,7 +44,7 @@ def user_has_voted(username):
     cur.execute("SELECT voted FROM users WHERE username=?", (username,))
     result = cur.fetchone()
     conn.close()
-    return result[0] == 1 if result else False
+    return result and result[0] == 1
 
 def set_user_voted(username):
     conn = get_connection()
@@ -81,26 +82,3 @@ def get_results():
     result = cur.fetchall()
     conn.close()
     return result
-    def create_tables():
-    conn = get_connection()
-    cur = conn.cursor()
-
-    cur.execute("""
-    CREATE TABLE IF NOT EXISTS users (
-        username TEXT PRIMARY KEY,
-        password TEXT NOT NULL,
-        voted INTEGER DEFAULT 0
-    )
-    """)
-    cur.execute("""
-    CREATE TABLE IF NOT EXISTS parties (
-        party_name TEXT PRIMARY KEY,
-        votes INTEGER DEFAULT 0
-    )
-    """)
-    # Insert default admin if not already present
-    cur.execute("INSERT OR IGNORE INTO users (username, password) VALUES (?, ?)", ("admin", "admin123"))
-
-    conn.commit()
-    conn.close()
-
