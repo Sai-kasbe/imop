@@ -4,8 +4,8 @@ import hashlib
 import os
 
 # ✅ Delete old database file if exists (only for development/testing)
-if os.path.exists("voting_app.db"):
-    os.remove("voting_app.db")
+if os.path.exists("database.py"):
+    os.remove("database.py")
 
 # ✅ Connect to the new database
 conn = sqlite3.connect('voting_app.db', check_same_thread=False)
