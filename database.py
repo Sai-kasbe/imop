@@ -1,20 +1,20 @@
 import sqlite3
 from datetime import datetime
 import hashlib
-import os
 
-# ✅ Delete old database file if exists (only for development/testing)
-if os.path.exists("database.py"):
-    os.remove("database.py")
-
-# ✅ Connect to the new database
+# Connect to the database
 conn = sqlite3.connect('voting_app.db', check_same_thread=False)
 cursor = conn.cursor()
 
-# ✅ Create necessary tables
-def create_tables():
+# Drop and recreate all tables
+def reset_tables():
+    cursor.execute("DROP TABLE IF EXISTS blockchain")
+    cursor.execute("DROP TABLE IF EXISTS result_schedule")
+    cursor.execute("DROP TABLE IF EXISTS candidates")
+    cursor.execute("DROP TABLE IF EXISTS users")
+
     cursor.execute('''
-        CREATE TABLE IF NOT EXISTS users (
+        CREATE TABLE users (
             roll_no TEXT PRIMARY KEY,
             name TEXT,
             password TEXT,
@@ -25,7 +25,7 @@ def create_tables():
         )
     ''')
     cursor.execute('''
-        CREATE TABLE IF NOT EXISTS candidates (
+        CREATE TABLE candidates (
             candidate_name TEXT,
             roll_no TEXT PRIMARY KEY,
             department TEXT,
@@ -36,14 +36,14 @@ def create_tables():
         )
     ''')
     cursor.execute('''
-        CREATE TABLE IF NOT EXISTS result_schedule (
+        CREATE TABLE result_schedule (
             id INTEGER PRIMARY KEY,
             result_date TEXT,
             is_announced INTEGER DEFAULT 0
         )
     ''')
     cursor.execute('''
-        CREATE TABLE IF NOT EXISTS blockchain (
+        CREATE TABLE blockchain (
             vote_id INTEGER PRIMARY KEY AUTOINCREMENT,
             roll_no TEXT,
             candidate TEXT,
@@ -53,37 +53,37 @@ def create_tables():
     ''')
     conn.commit()
 
-# ✅ Call create_tables at startup
-create_tables()
+# Call reset_tables on startup to ensure correct schema
+reset_tables()
 
-# ✅ Hash password
+# Hash password
 def hash_password(password):
     return hashlib.sha256(password.encode()).hexdigest()
 
-# ✅ Add a new user
+# Add a new user
 def add_user(roll_no, name, password, email, phone, image_path):
     try:
         cursor.execute("INSERT INTO users VALUES (?, ?, ?, ?, ?, ?, 0)", 
                        (roll_no, name, hash_password(password), email, phone, image_path))
         conn.commit()
         return True
-    except sqlite3.IntegrityError:
+    except sqlite3.IntegrityError as e:
+        print("IntegrityError:", e)
         return False
 
-# ✅ Authenticate user
+# Authenticate user
 def authenticate_user(roll_no, password):
     cursor.execute("SELECT * FROM users WHERE roll_no=? AND password=?", 
                    (roll_no, hash_password(password)))
-    row = cursor.fetchone()
-    return row
+    return cursor.fetchone()
 
-# ✅ Check if user has voted
+# Check if user has voted
 def has_voted(roll_no):
     cursor.execute("SELECT has_voted FROM users WHERE roll_no=?", (roll_no,))
     result = cursor.fetchone()
     return result and result[0] == 1
 
-# ✅ Record vote
+# Record vote
 def cast_vote(roll_no, candidate_name):
     if has_voted(roll_no):
         return False
@@ -92,7 +92,7 @@ def cast_vote(roll_no, candidate_name):
     conn.commit()
     return True
 
-# ✅ Add candidate
+# Add candidate
 def add_candidate(candidate_name, roll_no, department, year_sem, role, image_path):
     try:
         cursor.execute('''INSERT INTO candidates 
@@ -104,12 +104,12 @@ def add_candidate(candidate_name, roll_no, department, year_sem, role, image_pat
     except sqlite3.IntegrityError:
         return False
 
-# ✅ Get all candidates
+# Get all candidates
 def get_candidates():
     cursor.execute("SELECT * FROM candidates")
     return cursor.fetchall()
 
-# ✅ Record blockchain vote hash
+# Record blockchain vote hash
 def record_vote_hash(roll_no, candidate):
     vote_string = roll_no + candidate + datetime.now().isoformat()
     vote_hash = hashlib.sha256(vote_string.encode()).hexdigest()
@@ -118,12 +118,12 @@ def record_vote_hash(roll_no, candidate):
                    (roll_no, candidate, vote_hash, datetime.now().isoformat()))
     conn.commit()
 
-# ✅ Get results
+# Get results
 def get_results():
     cursor.execute("SELECT candidate_name, votes FROM candidates ORDER BY votes DESC")
     return cursor.fetchall()
 
-# ✅ Get all users
+# Get all users
 def get_all_users():
     cursor.execute("SELECT roll_no, name, email, phone, has_voted FROM users")
     return cursor.fetchall()
