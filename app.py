@@ -110,10 +110,8 @@ def user_login():
     if st.button("Login"):
         user = authenticate_user(roll_no, password)
         if user:
-            st.session_state['user_logged_in'] = True
-            st.session_state['user_data'] = user
-            st.session_state['force_rerun'] = True  # Set flag instead of rerun
-            st.success(f"Welcome {user['name']}!")
+            st.session_state.user_logged_in = True
+            st.session_state.user_data = user
         else:
             st.error("Invalid credentials!")
 
@@ -140,13 +138,9 @@ def admin_login():
     password = st.text_input("Password", type="password")
     if st.button("Login"):
         if username == ADMIN_ID and hash_password(password) == ADMIN_PASS:
-            st.session_state['admin_logged_in'] = True
-            st.session_state['force_rerun'] = True  # Set flag instead of rerun
-            st.success("Admin Logged In!")
+            st.session_state.admin_logged_in = True
         else:
             st.error("Invalid admin credentials!")
-
-st.sidebar.button("Logout", on_click=lambda: st.session_state.update({"admin_logged_in": False, "user_logged_in": False}))
 
 def admin_dashboard():
     st.header("📊 Admin Dashboard")
@@ -261,17 +255,27 @@ def forgot_password():
 
 # ====== MAIN ======
 def main():
-    if 'force_rerun' in st.session_state and st.session_state['force_rerun']:
-        st.session_state['force_rerun'] = False
-        st.experimental_rerun()
-
     st.title("🏛️ KGRCET ONLINE ELECTION SYSTEM")
     create_tables()
-    
-    if 'user_logged_in' in st.session_state and st.session_state['user_logged_in']:
-        user_dashboard(st.session_state['user_data'])
-    elif 'admin_logged_in' in st.session_state and st.session_state['admin_logged_in']:
+
+    if "admin_logged_in" not in st.session_state:
+        st.session_state.admin_logged_in = False
+    if "user_logged_in" not in st.session_state:
+        st.session_state.user_logged_in = False
+
+    if st.session_state.user_logged_in:
+        user_dashboard(st.session_state.user_data)
+        if st.button("Logout"):
+            st.session_state.user_logged_in = False
+            st.session_state.user_data = None
+            st.success("User logged out!")
+
+    elif st.session_state.admin_logged_in:
         admin_dashboard()
+        if st.button("Logout"):
+            st.session_state.admin_logged_in = False
+            st.success("Admin logged out!")
+
     else:
         page = st.sidebar.selectbox("Choose Page", ["Home", "User Login", "Admin Login", "Register", "Forgot Password"])
 
