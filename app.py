@@ -1,5 +1,12 @@
 import streamlit as st
 import pandas as pd
+from database import (
+    create_tables, register_user, authenticate_user,
+    user_has_voted, set_user_voted,
+    add_party, get_parties, vote_party, get_results
+)
+
+create_tables()  # ensure tables and admin account are set up
 
 # Initialize session state
 if "users" not in st.session_state:
