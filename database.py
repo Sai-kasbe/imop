@@ -1,10 +1,10 @@
 import sqlite3
 
-# Connect to SQLite database (or create it if not exists)
+# Connect to database
 conn = sqlite3.connect('voting_app.db', check_same_thread=False)
 cursor = conn.cursor()
 
-# Create necessary tables
+# Create tables
 def create_tables():
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS users (
@@ -21,7 +21,7 @@ def create_tables():
     ''')
     conn.commit()
 
-# Add a new user
+# Register user
 def add_user(username, password):
     try:
         cursor.execute('INSERT INTO users (username, password) VALUES (?, ?)', (username, password))
@@ -30,12 +30,12 @@ def add_user(username, password):
     except sqlite3.IntegrityError:
         return False
 
-# Authenticate a user
+# Authenticate user
 def authenticate_user(username, password):
     cursor.execute('SELECT * FROM users WHERE username=? AND password=?', (username, password))
     return cursor.fetchone() is not None
 
-# Add a political party
+# Add party
 def add_party(name):
     try:
         cursor.execute('INSERT INTO parties (name) VALUES (?)', (name,))
@@ -44,12 +44,12 @@ def add_party(name):
     except sqlite3.IntegrityError:
         return False
 
-# Get all party names
+# Get party list
 def get_parties():
     cursor.execute('SELECT name FROM parties')
     return [row[0] for row in cursor.fetchall()]
 
-# Cast a vote
+# Vote casting
 def cast_vote(username, party_name):
     cursor.execute('SELECT has_voted FROM users WHERE username=?', (username,))
     result = cursor.fetchone()
@@ -60,13 +60,18 @@ def cast_vote(username, party_name):
     conn.commit()
     return True
 
-# Check if user has voted
+# Check vote status
 def has_voted(username):
     cursor.execute('SELECT has_voted FROM users WHERE username=?', (username,))
     result = cursor.fetchone()
     return result and result[0] == 1
 
-# Get voting results
+# Get vote results
 def get_results():
     cursor.execute('SELECT name, votes FROM parties ORDER BY votes DESC')
+    return cursor.fetchall()
+
+# Get all users for admin
+def get_all_users():
+    cursor.execute('SELECT username, has_voted FROM users')
     return cursor.fetchall()
