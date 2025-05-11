@@ -55,7 +55,7 @@ def add_user(roll_no, name, password, email, phone, image):
 # Example usage
 if __name__ == "__main__":
     # Ensure the users table exists
-    create_users_table()
+    create_table()
     
     # Add example users
     try:
