@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
-
-init_db()
+from database import create_tables
+create_tables()
 
 if "page" not in st.session_state:
     st.session_state["page"] = "home"
