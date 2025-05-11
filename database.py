@@ -86,7 +86,7 @@ def cast_vote(roll_no, candidate_name):
     return True
 
 # Add candidate
-def add_candidate(candidate_name, roll_no, department, year_sem, role, image_path):
+def add_candidate(candidate_name, roll_no, department, year/sem, role, image_path):
     try:
         cursor.execute('''
             INSERT INTO candidates (candidate_name, roll_no, department, year_sem, role, image, votes)
