@@ -5,7 +5,7 @@ def connect_to_db():
     conn = sqlite3.connect("example.db")
     return conn
 
-def create_users_table():
+def create_tables():
     """Create the users table if it doesn't exist and ensure roll_no column is included."""
     conn = connect_to_db()
     cursor = conn.cursor()
