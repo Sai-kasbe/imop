@@ -52,7 +52,7 @@ def login_page():
     password = st.text_input("Password", type="password")
 
     if st.button("Login"):
-        if username in st.session_state["users"] and st.session_state["users"][username] == password:
+        if authenticate_user(username, password):
             st.session_state["logged_in_user"] = username
             st.session_state["is_admin"] = (username == "admin")
             st.session_state["page"] = "admin" if username == "admin" else "user"
