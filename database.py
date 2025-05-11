@@ -81,3 +81,26 @@ def get_results():
     result = cur.fetchall()
     conn.close()
     return result
+    def create_tables():
+    conn = get_connection()
+    cur = conn.cursor()
+
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS users (
+        username TEXT PRIMARY KEY,
+        password TEXT NOT NULL,
+        voted INTEGER DEFAULT 0
+    )
+    """)
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS parties (
+        party_name TEXT PRIMARY KEY,
+        votes INTEGER DEFAULT 0
+    )
+    """)
+    # Insert default admin if not already present
+    cur.execute("INSERT OR IGNORE INTO users (username, password) VALUES (?, ?)", ("admin", "admin123"))
+
+    conn.commit()
+    conn.close()
+
