@@ -1,84 +1,121 @@
 import sqlite3
 
-def get_connection():
-    return sqlite3.connect("election.db", check_same_thread=False)
+def init_db():
+    conn = sqlite3.connect("election.db")
+    c = conn.cursor()
 
-def create_tables():
-    conn = get_connection()
-    cur = conn.cursor()
-    cur.execute("""
-    CREATE TABLE IF NOT EXISTS users (
-        username TEXT PRIMARY KEY,
-        password TEXT NOT NULL,
-        voted INTEGER DEFAULT 0
-    )
+    # Users table
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS users (
+            username TEXT PRIMARY KEY,
+            password TEXT NOT NULL,
+            voted INTEGER DEFAULT 0
+        )
     """)
-    cur.execute("""
-    CREATE TABLE IF NOT EXISTS parties (
-        party_name TEXT PRIMARY KEY,
-        votes INTEGER DEFAULT 0
-    )
+
+    # Parties table
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS parties (
+            name TEXT PRIMARY KEY,
+            votes INTEGER DEFAULT 0
+        )
     """)
-    cur.execute("INSERT OR IGNORE INTO users (username, password) VALUES (?, ?)", ("admin", "admin123"))
+
+    # Global flags
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS flags (
+            key TEXT PRIMARY KEY,
+            value TEXT
+        )
+    """)
+
+    # Add default admin user if not exists
+    c.execute("INSERT OR IGNORE INTO users (username, password) VALUES (?, ?)", ("admin", "admin123"))
+
     conn.commit()
     conn.close()
 
 def register_user(username, password):
-    conn = get_connection()
-    cur = conn.cursor()
-    cur.execute("INSERT INTO users (username, password) VALUES (?, ?)", (username, password))
-    conn.commit()
-    conn.close()
+    conn = sqlite3.connect("election.db")
+    c = conn.cursor()
+    try:
+        c.execute("INSERT INTO users (username, password) VALUES (?, ?)", (username, password))
+        conn.commit()
+        return True
+    except sqlite3.IntegrityError:
+        return False
+    finally:
+        conn.close()
 
 def authenticate_user(username, password):
-    conn = get_connection()
-    cur = conn.cursor()
-    cur.execute("SELECT * FROM users WHERE username=? AND password=?", (username, password))
-    result = cur.fetchone()
+    conn = sqlite3.connect("election.db")
+    c = conn.cursor()
+    c.execute("SELECT * FROM users WHERE username=? AND password=?", (username, password))
+    result = c.fetchone()
     conn.close()
     return result is not None
 
-def user_has_voted(username):
-    conn = get_connection()
-    cur = conn.cursor()
-    cur.execute("SELECT voted FROM users WHERE username=?", (username,))
-    result = cur.fetchone()
-    conn.close()
-    return result and result[0] == 1
-
-def set_user_voted(username):
-    conn = get_connection()
-    cur = conn.cursor()
-    cur.execute("UPDATE users SET voted = 1 WHERE username=?", (username,))
-    conn.commit()
-    conn.close()
-
-def add_party(party_name):
-    conn = get_connection()
-    cur = conn.cursor()
-    cur.execute("INSERT OR IGNORE INTO parties (party_name, votes) VALUES (?, 0)", (party_name,))
-    conn.commit()
-    conn.close()
+def add_party(name):
+    conn = sqlite3.connect("election.db")
+    c = conn.cursor()
+    try:
+        c.execute("INSERT INTO parties (name) VALUES (?)", (name,))
+        conn.commit()
+        return True
+    except sqlite3.IntegrityError:
+        return False
+    finally:
+        conn.close()
 
 def get_parties():
-    conn = get_connection()
-    cur = conn.cursor()
-    cur.execute("SELECT party_name FROM parties")
-    parties = [row[0] for row in cur.fetchall()]
+    conn = sqlite3.connect("election.db")
+    c = conn.cursor()
+    c.execute("SELECT name FROM parties")
+    parties = [row[0] for row in c.fetchall()]
     conn.close()
     return parties
 
-def vote_party(party_name):
-    conn = get_connection()
-    cur = conn.cursor()
-    cur.execute("UPDATE parties SET votes = votes + 1 WHERE party_name=?", (party_name,))
+def vote_party(name):
+    conn = sqlite3.connect("election.db")
+    c = conn.cursor()
+    c.execute("UPDATE parties SET votes = votes + 1 WHERE name=?", (name,))
     conn.commit()
     conn.close()
 
-def get_results():
-    conn = get_connection()
-    cur = conn.cursor()
-    cur.execute("SELECT * FROM parties ORDER BY votes DESC")
-    result = cur.fetchall()
+def set_user_voted(username):
+    conn = sqlite3.connect("election.db")
+    c = conn.cursor()
+    c.execute("UPDATE users SET voted=1 WHERE username=?", (username,))
+    conn.commit()
     conn.close()
-    return result
+
+def user_has_voted(username):
+    conn = sqlite3.connect("election.db")
+    c = conn.cursor()
+    c.execute("SELECT voted FROM users WHERE username=?", (username,))
+    result = c.fetchone()
+    conn.close()
+    return result and result[0] == 1
+
+def get_results():
+    conn = sqlite3.connect("election.db")
+    c = conn.cursor()
+    c.execute("SELECT name, votes FROM parties")
+    results = c.fetchall()
+    conn.close()
+    return results
+
+def release_results():
+    conn = sqlite3.connect("election.db")
+    c = conn.cursor()
+    c.execute("INSERT OR REPLACE INTO flags (key, value) VALUES ('results_released', '1')")
+    conn.commit()
+    conn.close()
+
+def results_are_released():
+    conn = sqlite3.connect("election.db")
+    c = conn.cursor()
+    c.execute("SELECT value FROM flags WHERE key='results_released'")
+    row = c.fetchone()
+    conn.close()
+    return row and row[0] == '1'
