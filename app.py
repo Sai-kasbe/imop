@@ -127,7 +127,6 @@ st.session_state.setdefault("page", "home")
 st.session_state.setdefault("logged_in_user", None)
 st.session_state.setdefault("is_admin", False)
 st.session_state.setdefault("results_released", False)
-st.session_state.setdefault("result_date", "")
 
 # ===== UI STYLE =====
 st.markdown("""
@@ -167,6 +166,18 @@ def register_user():
                 st.error("Roll No already exists.")
         else:
             st.warning("All fields are required.")
+
+def login_admin():
+    st.header("Admin Login")
+    username = st.text_input("Admin ID")
+    password = st.text_input("Password", type="password")
+    if st.button("Login"):
+        if username == "admin123" and password == "password":
+            st.session_state["logged_in_user"] = username
+            st.session_state["is_admin"] = True
+            st.session_state["page"] = "admin"
+        else:
+            st.error("Invalid admin credentials.")
 
 def admin_panel():
     st.header("Admin Dashboard")
