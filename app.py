@@ -1,4 +1,3 @@
-# KGRCET ONLINE ELECTION SYSTEM - Streamlit App
 import streamlit as st
 import pandas as pd
 import sqlite3
@@ -73,13 +72,14 @@ def create_tables():
         image TEXT,
         votes INTEGER DEFAULT 0
     )''')
+
     cursor.execute('''CREATE TABLE IF NOT EXISTS result_schedule (
         id INTEGER PRIMARY KEY,
         result_date TEXT,
         is_announced INTEGER DEFAULT 0
     )''')
 
-    /*-cursor.execute('''CREATE TABLE IF NOT EXISTS blockchain (
+    cursor.execute('''CREATE TABLE IF NOT EXISTS blockchain (
         vote_id INTEGER PRIMARY KEY AUTOINCREMENT,
         roll_no TEXT,
         candidate TEXT,
@@ -114,6 +114,7 @@ def user_login():
             user_dashboard(user)
         else:
             st.error("Invalid credentials!")
+
 def user_dashboard(user):
     st.header("🗳️ Vote Dashboard")
     if user['has_voted']:
@@ -168,16 +169,12 @@ def admin_dashboard():
                 st.success("Candidate Added!")
             except sqlite3.IntegrityError:
                 st.error("Candidate with this roll number already exists!")
+
     with tab2:
+        conn, _ = get_connection()
         st.subheader("All Registered Users")
-        try:
-            conn, _ = get_connection()
-            conn.execute("CREATE TABLE IF NOT EXISTS users (roll_no TEXT PRIMARY KEY, name TEXT, password TEXT, email TEXT, phone TEXT, image TEXT, has_voted INTEGER DEFAULT 0)")
-            df = pd.read_sql("SELECT roll_no, name, email, phone, has_voted FROM users", conn)
-            st.dataframe(df)
-        except Exception as e:
-            st.error("Failed to load registered users.")
-            st.exception(e)
+        df = pd.read_sql("SELECT roll_no, name, email, phone, has_voted FROM users", conn)
+        st.dataframe(df)
 
     with tab3:
         conn, cursor = get_connection()
