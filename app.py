@@ -143,6 +143,8 @@ def admin_login():
         else:
             st.error("Invalid admin credentials!")
 
+st.sidebar.button("Logout", on_click=lambda: st.session_state.update({"admin_logged_in": False}))
+
 def admin_dashboard():
     st.header("📊 Admin Dashboard")
     tab1, tab2, tab3 = st.tabs(["➕ Add Candidate", "🧑‍💼 Registered Users", "📢 Result Settings"])
