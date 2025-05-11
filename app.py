@@ -23,7 +23,8 @@ def home_page():
         st.experimental_rerun()
     if st.button("Register"):
         st.session_state["page"] = "register"
-        st.experimental_rerun()
+        st.rerun()
+
 
 def register_page():
     st.title("Register")
@@ -36,13 +37,15 @@ def register_page():
         elif register_user(username, password):
             st.success("Registration successful. Please log in.")
             st.session_state["page"] = "login"
-            st.experimental_rerun()
+            st.rerun()
+
         else:
             st.error("Username already exists.")
 
     if st.button("Back"):
         st.session_state["page"] = "home"
-        st.experimental_rerun()
+        st.rerun()
+
 
 def login_page():
     st.title("Login")
@@ -54,13 +57,15 @@ def login_page():
             st.session_state["logged_in_user"] = username
             st.session_state["is_admin"] = (username == "admin")
             st.session_state["page"] = "admin" if username == "admin" else "user"
-            st.experimental_rerun()
+            st.rerun()
+
         else:
             st.error("Invalid username or password")
 
     if st.button("Back"):
         st.session_state["page"] = "home"
-        st.experimental_rerun()
+        st.rerun()
+
 
 def admin_panel():
     st.title("Admin Panel")
@@ -90,7 +95,8 @@ def admin_panel():
 
     if st.button("Logout"):
         st.session_state.clear()
-        st.experimental_rerun()
+        st.rerun()
+
 
 def user_panel():
     st.title("User Panel")
@@ -106,7 +112,8 @@ def user_panel():
                 vote_party(selected)
                 set_user_voted(username)
                 st.success("Vote recorded.")
-                st.experimental_rerun()
+                st.rerun()
+
         else:
             st.warning("No parties available.")
 
@@ -117,7 +124,8 @@ def user_panel():
 
     if st.button("Logout"):
         st.session_state.clear()
-        st.experimental_rerun()
+        st.rerun()
+
 
 # Routing
 if st.session_state["logged_in_user"] is None:
