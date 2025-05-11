@@ -34,4 +34,21 @@ def add_roll_no_column():
     if "roll_no" not in columns:
         cursor.execute("ALTER TABLE users ADD COLUMN roll_no TEXT NOT NULL DEFAULT ''")
         conn.commit()
-        print(user)
+    conn.close()
+
+def add_user(name, email, roll_no):
+    """Add a new user to the users table."""
+    conn = connect_to_db()
+    cursor = conn.cursor()
+
+    try:
+        cursor.execute("""
+            INSERT INTO users (name, email, roll_no)
+            VALUES (?, ?, ?)
+        """, (name, email, roll_no))
+
+        conn.commit()
+    except sqlite3.IntegrityError as e:
+        print(f"Error adding user: {e}")
+    finally:
+        conn.close()
