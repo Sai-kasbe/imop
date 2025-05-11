@@ -66,7 +66,7 @@ def create_tables():
 
     cursor.execute('''CREATE TABLE IF NOT EXISTS candidates (
         candidate_name TEXT,
-         roll_no TEXT PRIMARY KEY,
+        roll_no TEXT PRIMARY KEY,
         department TEXT,
         year_sem TEXT,
         role TEXT,
@@ -135,10 +135,10 @@ def user_dashboard(user):
 # ====== ADMIN LOGIN ======
 def admin_login():
     st.subheader("🔐 Admin Login")
-    username = st.text_input("Sai-kasbe")
-    password = st.text_input("Sai7@99499", type="password")
+    username = st.text_input("Admin ID")
+    password = st.text_input("Password", type="password")
     if st.button("Login"):
-        if username == Sai-kasbe and hash_password(Sai7@99499) == ADMIN_PASS:
+        if username == ADMIN_ID and hash_password(password) == ADMIN_PASS:
             st.success("Admin Logged In!")
             admin_dashboard()
         else:
@@ -202,7 +202,7 @@ def user_registration():
     phone = st.text_input("Phone")
     password = st.text_input("Password", type="password")
     image = st.file_uploader("Upload Image")
-if st.button("Register"):
+    if st.button("Register"):
         image_path = "images/" + image.name if image else ""
         if image:
             os.makedirs("images", exist_ok=True)
