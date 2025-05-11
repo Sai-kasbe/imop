@@ -216,24 +216,27 @@ def user_registration():
     phone = st.text_input("Phone")
     password = st.text_input("Password", type="password")
     image = st.file_uploader("Upload Image")
+
     if st.button("Register"):
         if not all([name, roll_no, email, phone, password, image]):
             st.error("All fields including image are required.")
             return
+
         image_path = "images/" + image.name
         try:
             os.makedirs("images", exist_ok=True)
             with open(image_path, "wb") as f:
                 f.write(image.getbuffer())
-            conn, cursor = get_connection()
-            cursor.execute("INSERT INTO users VALUES (?, ?, ?, ?, ?, ?, 0)",
-                           (roll_no, name, hash_password(password), email, phone, image_path))
-            conn.commit()
-            st.success("Registered successfully!")
-        except sqlite3.IntegrityError:
-            st.error("User with this roll number already exists!")
+
+            from database import add_user  # Import the correct function
+            success = add_user(roll_no, name, password, email, phone, image_path)
+            if success:
+                st.success("Registered successfully!")
+            else:
+                st.error("User with this roll number already exists!")
         except Exception as e:
             st.error(f"Error: {e}")
+
         finally:
             conn.close()
 
