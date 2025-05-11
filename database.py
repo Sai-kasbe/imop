@@ -1,77 +1,121 @@
 import sqlite3
+from datetime import datetime
+import hashlib
 
-# Connect to database
+# Connect to the database
 conn = sqlite3.connect('voting_app.db', check_same_thread=False)
 cursor = conn.cursor()
 
-# Create tables
+# Create necessary tables
 def create_tables():
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS users (
-            username TEXT PRIMARY KEY,
+            roll_no TEXT PRIMARY KEY,
+            name TEXT,
             password TEXT,
+            email TEXT,
+            phone TEXT,
+            image TEXT,
             has_voted INTEGER DEFAULT 0
         )
     ''')
     cursor.execute('''
-        CREATE TABLE IF NOT EXISTS parties (
-            name TEXT PRIMARY KEY,
+        CREATE TABLE IF NOT EXISTS candidates (
+            candidate_name TEXT,
+            roll_no TEXT PRIMARY KEY,
+            department TEXT,
+            year_sem TEXT,
+            role TEXT,
+            image TEXT,
             votes INTEGER DEFAULT 0
+        )
+    ''')
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS result_schedule (
+            id INTEGER PRIMARY KEY,
+            result_date TEXT,
+            is_announced INTEGER DEFAULT 0
+        )
+    ''')
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS blockchain (
+            vote_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            roll_no TEXT,
+            candidate TEXT,
+            vote_hash TEXT,
+            timestamp TEXT
         )
     ''')
     conn.commit()
 
-# Register user
-def add_user(username, password):
+# Hash password
+def hash_password(password):
+    return hashlib.sha256(password.encode()).hexdigest()
+
+# Add a new user
+def add_user(roll_no, name, password, email, phone, image_path):
     try:
-        cursor.execute('INSERT INTO users (username, password) VALUES (?, ?)', (username, password))
+        cursor.execute("INSERT INTO users VALUES (?, ?, ?, ?, ?, ?, 0)", 
+                       (roll_no, name, hash_password(password), email, phone, image_path))
         conn.commit()
         return True
     except sqlite3.IntegrityError:
         return False
 
 # Authenticate user
-def authenticate_user(username, password):
-    cursor.execute('SELECT * FROM users WHERE username=? AND password=?', (username, password))
-    return cursor.fetchone() is not None
+def authenticate_user(roll_no, password):
+    cursor.execute("SELECT * FROM users WHERE roll_no=? AND password=?", 
+                   (roll_no, hash_password(password)))
+    row = cursor.fetchone()
+    return row
 
-# Add party
-def add_party(name):
+# Check if user has voted
+def has_voted(roll_no):
+    cursor.execute("SELECT has_voted FROM users WHERE roll_no=?", (roll_no,))
+    result = cursor.fetchone()
+    return result and result[0] == 1
+
+# Record vote
+def cast_vote(roll_no, candidate_name):
+    if has_voted(roll_no):
+        return False
+    cursor.execute("UPDATE candidates SET votes = votes + 1 WHERE candidate_name=?", (candidate_name,))
+    cursor.execute("UPDATE users SET has_voted = 1 WHERE roll_no=?", (roll_no,))
+    conn.commit()
+    return True
+
+# Add candidate
+def add_candidate(candidate_name, roll_no, department, year_sem, role, image_path):
     try:
-        cursor.execute('INSERT INTO parties (name) VALUES (?)', (name,))
+        cursor.execute('''INSERT INTO candidates 
+            (candidate_name, roll_no, department, year_sem, role, image, votes)
+            VALUES (?, ?, ?, ?, ?, ?, 0)''',
+            (candidate_name, roll_no, department, year_sem, role, image_path))
         conn.commit()
         return True
     except sqlite3.IntegrityError:
         return False
 
-# Get party list
-def get_parties():
-    cursor.execute('SELECT name FROM parties')
-    return [row[0] for row in cursor.fetchall()]
-
-# Vote casting
-def cast_vote(username, party_name):
-    cursor.execute('SELECT has_voted FROM users WHERE username=?', (username,))
-    result = cursor.fetchone()
-    if result and result[0] == 1:
-        return False
-    cursor.execute('UPDATE parties SET votes = votes + 1 WHERE name=?', (party_name,))
-    cursor.execute('UPDATE users SET has_voted = 1 WHERE username=?', (username,))
-    conn.commit()
-    return True
-
-# Check vote status
-def has_voted(username):
-    cursor.execute('SELECT has_voted FROM users WHERE username=?', (username,))
-    result = cursor.fetchone()
-    return result and result[0] == 1
-
-# Get vote results
-def get_results():
-    cursor.execute('SELECT name, votes FROM parties ORDER BY votes DESC')
+# Get all candidates
+def get_candidates():
+    cursor.execute("SELECT * FROM candidates")
     return cursor.fetchall()
 
-# Get all users for admin
+# Record blockchain vote hash
+def record_vote_hash(roll_no, candidate):
+    vote_string = roll_no + candidate + datetime.now().isoformat()
+    vote_hash = hashlib.sha256(vote_string.encode()).hexdigest()
+    cursor.execute('''INSERT INTO blockchain (roll_no, candidate, vote_hash, timestamp)
+                      VALUES (?, ?, ?, ?)''',
+                   (roll_no, candidate, vote_hash, datetime.now().isoformat()))
+    conn.commit()
+
+# Get results
+def get_results():
+    cursor.execute("SELECT candidate_name, votes FROM candidates ORDER BY votes DESC")
+    return cursor.fetchall()
+
+# Get all users
 def get_all_users():
-    cursor.execute('SELECT username, has_voted FROM users')
+    cursor.execute("SELECT roll_no, name, email, phone, has_voted FROM users")
     return cursor.fetchall()
