@@ -147,38 +147,37 @@ def admin_dashboard():
     st.header("📊 Admin Dashboard")
     tab1, tab2, tab3 = st.tabs(["➕ Add Candidate", "🧑‍💼 Registered Users", "📢 Result Settings"])
 
-   with tab1:
-    st.subheader("Add New Candidate (Party)")
-    name = st.text_input("Candidate Name")
-    roll_no = st.text_input("Roll No (Unique)")
-    dept = st.text_input("Department")
-    year_sem = st.text_input("Year/Sem")
-    role = st.selectbox("Role", ["President", "Vice-President", "Secretary", "Treasurer"])
-    image_file = st.file_uploader("Upload Image", type=["jpg", "png", "jpeg"])
+    with tab1:
+        st.subheader("Add New Candidate (Party)")
+        name = st.text_input("Candidate Name")
+        roll_no = st.text_input("Roll No (Unique)")
+        dept = st.text_input("Department")
+        year_sem = st.text_input("Year/Sem")
+        role = st.selectbox("Role", ["President", "Vice-President", "Secretary", "Treasurer"])
+        image_file = st.file_uploader("Upload Image", type=["jpg", "png", "jpeg"])
+        if st.button("Add Candidate"):
+            if not all([name, roll_no, dept, year_sem, role, image_file]):
+                st.error("Please fill in all fields and upload an image.")
+            else:
+                try:
+                    image_path = os.path.join("images", image_file.name)
+                    os.makedirs("images", exist_ok=True)
+                    with open(image_path, "wb") as f:
+                        f.write(image_file.getbuffer())
+                     
+                    conn, cursor = get_connection()
+                    cursor.execute("INSERT INTO candidates VALUES (?, ?, ?, ?, ?, ?, 0)",
+                                   (name, roll_no, dept, year_sem, role, image_path))
+                    conn.commit()
+                    st.success("Candidate Added!")
+                except sqlite3.IntegrityError:
+                    st.error("Candidate with this roll number already exists!")
+                except Exception as e:
+                    st.error(f"Error while adding candidate: {e}")
+                finally:
+                    conn.close()
 
-    if st.button("Add Candidate"):
-        if not all([name, roll_no, dept, year_sem, role, image_file]):
-            st.error("Please fill in all fields and upload an image.")
-        else:
-            try:
-                image_path = os.path.join("images", image_file.name)
-                os.makedirs("images", exist_ok=True)
-                with open(image_path, "wb") as f:
-                    f.write(image_file.getbuffer())
-
-                conn, cursor = get_connection()
-                cursor.execute("INSERT INTO candidates VALUES (?, ?, ?, ?, ?, ?, 0)",
-                               (name, roll_no, dept, year_sem, role, image_path))
-                conn.commit()
-                st.success("Candidate Added!")
-            except sqlite3.IntegrityError:
-                st.error("Candidate with this roll number already exists!")
-            except Exception as e:
-                st.error(f"Error while adding candidate: {e}")
-            finally:
-                conn.close()
-
-
+    
     with tab2:
         st.subheader("All Registered Users")
         conn, cursor = get_connection()
