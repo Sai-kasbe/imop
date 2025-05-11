@@ -6,15 +6,10 @@ import hashlib
 conn = sqlite3.connect('voting_app.db', check_same_thread=False)
 cursor = conn.cursor()
 
-# Drop and recreate all tables
-def reset_tables():
-    cursor.execute("DROP TABLE IF EXISTS blockchain")
-    cursor.execute("DROP TABLE IF EXISTS result_schedule")
-    cursor.execute("DROP TABLE IF EXISTS candidates")
-    cursor.execute("DROP TABLE IF EXISTS users")
-
+# Create necessary tables
+def create_tables():
     cursor.execute('''
-        CREATE TABLE users (
+        CREATE TABLE IF NOT EXISTS users (
             roll_no TEXT PRIMARY KEY,
             name TEXT,
             password TEXT,
@@ -25,7 +20,7 @@ def reset_tables():
         )
     ''')
     cursor.execute('''
-        CREATE TABLE candidates (
+        CREATE TABLE IF NOT EXISTS candidates (
             candidate_name TEXT,
             roll_no TEXT PRIMARY KEY,
             department TEXT,
@@ -36,14 +31,14 @@ def reset_tables():
         )
     ''')
     cursor.execute('''
-        CREATE TABLE result_schedule (
+        CREATE TABLE IF NOT EXISTS result_schedule (
             id INTEGER PRIMARY KEY,
             result_date TEXT,
             is_announced INTEGER DEFAULT 0
         )
     ''')
     cursor.execute('''
-        CREATE TABLE blockchain (
+        CREATE TABLE IF NOT EXISTS blockchain (
             vote_id INTEGER PRIMARY KEY AUTOINCREMENT,
             roll_no TEXT,
             candidate TEXT,
@@ -53,22 +48,20 @@ def reset_tables():
     ''')
     conn.commit()
 
-# Call reset_tables on startup to ensure correct schema
-reset_tables()
-
-# Hash password
+# Utility: hash password
 def hash_password(password):
     return hashlib.sha256(password.encode()).hexdigest()
 
 # Add a new user
 def add_user(roll_no, name, password, email, phone, image_path):
     try:
-        cursor.execute("INSERT INTO users VALUES (?, ?, ?, ?, ?, ?, 0)", 
-                       (roll_no, name, hash_password(password), email, phone, image_path))
+        cursor.execute('''
+            INSERT INTO users (roll_no, name, password, email, phone, image, has_voted)
+            VALUES (?, ?, ?, ?, ?, ?, 0)
+        ''', (roll_no, name, hash_password(password), email, phone, image_path))
         conn.commit()
         return True
-    except sqlite3.IntegrityError as e:
-        print("IntegrityError:", e)
+    except sqlite3.IntegrityError:
         return False
 
 # Authenticate user
@@ -77,13 +70,13 @@ def authenticate_user(roll_no, password):
                    (roll_no, hash_password(password)))
     return cursor.fetchone()
 
-# Check if user has voted
+# Has user voted
 def has_voted(roll_no):
     cursor.execute("SELECT has_voted FROM users WHERE roll_no=?", (roll_no,))
     result = cursor.fetchone()
     return result and result[0] == 1
 
-# Record vote
+# Record a vote
 def cast_vote(roll_no, candidate_name):
     if has_voted(roll_no):
         return False
@@ -95,10 +88,10 @@ def cast_vote(roll_no, candidate_name):
 # Add candidate
 def add_candidate(candidate_name, roll_no, department, year_sem, role, image_path):
     try:
-        cursor.execute('''INSERT INTO candidates 
-            (candidate_name, roll_no, department, year_sem, role, image, votes)
-            VALUES (?, ?, ?, ?, ?, ?, 0)''',
-            (candidate_name, roll_no, department, year_sem, role, image_path))
+        cursor.execute('''
+            INSERT INTO candidates (candidate_name, roll_no, department, year_sem, role, image, votes)
+            VALUES (?, ?, ?, ?, ?, ?, 0)
+        ''', (candidate_name, roll_no, department, year_sem, role, image_path))
         conn.commit()
         return True
     except sqlite3.IntegrityError:
@@ -113,9 +106,10 @@ def get_candidates():
 def record_vote_hash(roll_no, candidate):
     vote_string = roll_no + candidate + datetime.now().isoformat()
     vote_hash = hashlib.sha256(vote_string.encode()).hexdigest()
-    cursor.execute('''INSERT INTO blockchain (roll_no, candidate, vote_hash, timestamp)
-                      VALUES (?, ?, ?, ?)''',
-                   (roll_no, candidate, vote_hash, datetime.now().isoformat()))
+    cursor.execute('''
+        INSERT INTO blockchain (roll_no, candidate, vote_hash, timestamp)
+        VALUES (?, ?, ?, ?)
+    ''', (roll_no, candidate, vote_hash, datetime.now().isoformat()))
     conn.commit()
 
 # Get results
