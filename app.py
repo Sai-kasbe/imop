@@ -27,6 +27,14 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
+# ====== SESSION STATE INITIALIZATION ======
+if 'user_logged_in' not in st.session_state:
+    st.session_state['user_logged_in'] = False
+if 'admin_logged_in' not in st.session_state:
+    st.session_state['admin_logged_in'] = False
+if 'user_data' not in st.session_state:
+    st.session_state['user_data'] = {}
+
 # ====== UTILS ======
 def hash_password(password):
     return hashlib.sha256(password.encode()).hexdigest()
@@ -50,6 +58,15 @@ def authenticate_user(roll_no, password):
         }
     return None
 
+def logout(user_type):
+    if user_type == 'user':
+        st.session_state['user_logged_in'] = False
+        st.session_state['user_data'] = {}
+    elif user_type == 'admin':
+        st.session_state['admin_logged_in'] = False
+    st.success("Logged out successfully!")
+    st.experimental_rerun()
+
 # ====== INIT DB ======
 def create_tables():
     conn, cursor = get_connection()
@@ -62,7 +79,6 @@ def create_tables():
         image TEXT,
         has_voted INTEGER DEFAULT 0
     )''')
-
     cursor.execute('''CREATE TABLE IF NOT EXISTS candidates (
         candidate_name TEXT,
         roll_no TEXT PRIMARY KEY,
@@ -72,13 +88,11 @@ def create_tables():
         image TEXT,
         votes INTEGER DEFAULT 0
     )''')
-
     cursor.execute('''CREATE TABLE IF NOT EXISTS result_schedule (
         id INTEGER PRIMARY KEY,
         result_date TEXT,
         is_announced INTEGER DEFAULT 0
     )''')
-
     cursor.execute('''CREATE TABLE IF NOT EXISTS blockchain (
         vote_id INTEGER PRIMARY KEY AUTOINCREMENT,
         roll_no TEXT,
@@ -86,7 +100,6 @@ def create_tables():
         vote_hash TEXT,
         timestamp TEXT
     )''')
-
     conn.commit()
     conn.close()
 
@@ -105,18 +118,26 @@ ADMIN_PASS = hash_password("Sai7@99499")
 # ====== USER LOGIN ======
 def user_login():
     st.subheader("👨‍🎓 User Login")
+    if st.session_state['user_logged_in']:
+        st.info("You're already logged in.")
+        user_dashboard(st.session_state['user_data'])
+        return
     roll_no = st.text_input("Roll Number")
     password = st.text_input("Password", type="password")
     if st.button("Login"):
         user = authenticate_user(roll_no, password)
         if user:
+            st.session_state['user_logged_in'] = True
+            st.session_state['user_data'] = user
             st.success(f"Welcome {user['name']}!")
-            user_dashboard(user)
+            st.experimental_rerun()
         else:
             st.error("Invalid credentials!")
 
 def user_dashboard(user):
     st.header("🗳️ Vote Dashboard")
+    st.button("Logout", on_click=lambda: logout('user'))
+
     if user['has_voted']:
         st.success("Status: ✅ VOTED")
     else:
@@ -130,25 +151,30 @@ def user_dashboard(user):
             conn.commit()
             record_vote_hash(user['roll_no'], selected)
             st.success("Vote Cast Successfully!")
+            st.session_state['user_data']['has_voted'] = 1
 
 # ====== ADMIN LOGIN ======
 def admin_login():
     st.subheader("🔐 Admin Login")
+    if st.session_state['admin_logged_in']:
+        st.info("You're already logged in as Admin.")
+        admin_dashboard()
+        return
     username = st.text_input("Admin ID")
     password = st.text_input("Password", type="password")
     if st.button("Login"):
         if username == ADMIN_ID and hash_password(password) == ADMIN_PASS:
+            st.session_state['admin_logged_in'] = True
             st.success("Admin Logged In!")
-            admin_dashboard()
+            st.experimental_rerun()
         else:
             st.error("Invalid admin credentials!")
 
-st.sidebar.button("Logout", on_click=lambda: st.session_state.update({"admin_logged_in": False}))
-
 def admin_dashboard():
     st.header("📊 Admin Dashboard")
-    tab1, tab2, tab3 = st.tabs(["➕ Add Candidate", "🧑‍💼 Registered Users", "📢 Result Settings"])
+    st.button("Logout", on_click=lambda: logout('admin'))
 
+    tab1, tab2, tab3 = st.tabs(["➕ Add Candidate", "🧑‍💼 Registered Users", "📢 Result Settings"])
     with tab1:
         st.subheader("Add New Candidate (Party)")
         name = st.text_input("Candidate Name")
@@ -157,7 +183,6 @@ def admin_dashboard():
         year_sem = st.text_input("Year/Sem")
         role = st.selectbox("Role", ["President", "Vice-President", "Secretary", "Treasurer"])
         image_file = st.file_uploader("Upload Image", type=["jpg", "png", "jpeg"])
-
         if st.button("Add Candidate"):
             if not all([name, roll_no, dept, year_sem, role, image_file]):
                 st.error("Please fill in all fields and upload an image.")
@@ -167,7 +192,6 @@ def admin_dashboard():
                     image_path = os.path.join("images", image_file.name)
                     with open(image_path, "wb") as f:
                         f.write(image_file.getbuffer())
-
                     conn, cursor = get_connection()
                     cursor.execute(
                         "INSERT INTO candidates (candidate_name, roll_no, department, year_sem, role, image, votes) VALUES (?, ?, ?, ?, ?, ?, 0)",
@@ -213,6 +237,9 @@ def admin_dashboard():
 # ====== REGISTRATION ======
 def user_registration():
     st.subheader("📝 New User Registration")
+    if st.session_state['user_logged_in'] or st.session_state['admin_logged_in']:
+        st.warning("Logout to access registration.")
+        return
     name = st.text_input("Full Name")
     roll_no = st.text_input("Roll Number (Unique)")
     email = st.text_input("Email")
@@ -260,12 +287,23 @@ def forgot_password():
 def main():
     st.title("🏛️ KGRCET ONLINE ELECTION SYSTEM")
     create_tables()
-    page = st.sidebar.selectbox("Choose Page", ["Home", "User Login", "Admin Login", "Register", "Forgot Password"])
+
+    page = st.sidebar.selectbox("Choose Page", [
+        "Home",
+        "User Dashboard" if st.session_state['user_logged_in'] else "User Login",
+        "Admin Dashboard" if st.session_state['admin_logged_in'] else "Admin Login",
+        "Register" if not (st.session_state['user_logged_in'] or st.session_state['admin_logged_in']) else "Disabled",
+        "Forgot Password"
+    ])
 
     if page == "User Login":
         user_login()
+    elif page == "User Dashboard":
+        user_dashboard(st.session_state['user_data'])
     elif page == "Admin Login":
         admin_login()
+    elif page == "Admin Dashboard":
+        admin_dashboard()
     elif page == "Register":
         user_registration()
     elif page == "Forgot Password":
