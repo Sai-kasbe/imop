@@ -1,21 +1,69 @@
 import streamlit as st
 import pandas as pd
-from database import (
-    create_tables,
-    add_user,
-    authenticate_user,
-    add_party,
-    get_parties,
-    cast_vote,
-    has_voted,
-    get_results,
-    get_all_users
-)
+import sqlite3
 
-# Initialize database
+# === DATABASE FUNCTIONS ===
+
+conn = sqlite3.connect('voting_app.db', check_same_thread=False)
+cursor = conn.cursor()
+
+# Create tables
+def create_tables():
+    cursor.execute('''CREATE TABLE IF NOT EXISTS users (username TEXT PRIMARY KEY, password TEXT, has_voted INTEGER DEFAULT 0)''')
+    cursor.execute('''CREATE TABLE IF NOT EXISTS parties (name TEXT PRIMARY KEY, votes INTEGER DEFAULT 0)''')
+    conn.commit()
+
+def add_user(username, password):
+    try:
+        cursor.execute('INSERT INTO users (username, password) VALUES (?, ?)', (username, password))
+        conn.commit()
+        return True
+    except sqlite3.IntegrityError:
+        return False
+
+def authenticate_user(username, password):
+    cursor.execute('SELECT * FROM users WHERE username=? AND password=?', (username, password))
+    return cursor.fetchone() is not None
+
+def add_party(name):
+    try:
+        cursor.execute('INSERT INTO parties (name) VALUES (?)', (name,))
+        conn.commit()
+        return True
+    except sqlite3.IntegrityError:
+        return False
+
+def get_parties():
+    cursor.execute('SELECT name FROM parties')
+    return [row[0] for row in cursor.fetchall()]
+
+def cast_vote(username, party_name):
+    cursor.execute('SELECT has_voted FROM users WHERE username=?', (username,))
+    result = cursor.fetchone()
+    if result and result[0] == 1:
+        return False
+    cursor.execute('UPDATE parties SET votes = votes + 1 WHERE name=?', (party_name,))
+    cursor.execute('UPDATE users SET has_voted = 1 WHERE username=?', (username,))
+    conn.commit()
+    return True
+
+def has_voted(username):
+    cursor.execute('SELECT has_voted FROM users WHERE username=?', (username,))
+    result = cursor.fetchone()
+    return result and result[0] == 1
+
+def get_results():
+    cursor.execute('SELECT name, votes FROM parties ORDER BY votes DESC')
+    return cursor.fetchall()
+
+def get_all_users():
+    cursor.execute('SELECT username, has_voted FROM users')
+    return cursor.fetchall()
+
+# === STREAMLIT INTERFACE ===
+
 create_tables()
 
-# Initialize session state
 if "page" not in st.session_state:
     st.session_state["page"] = "home"
 if "logged_in_user" not in st.session_state:
@@ -27,145 +75,127 @@ if "results_released" not in st.session_state:
 if "result_date" not in st.session_state:
     st.session_state["result_date"] = ""
 
-# Home Page
+st.markdown("""
+    <style>
+        body { background-color: #f0f2f6; }
+        .main { background-color: white; border-radius: 10px; padding: 30px; }
+        .title { color: #4B8BBE; font-size: 36px; }
+        .subtitle { color: #306998; font-size: 24px; }
+        .button { background-color: #4CAF50; color: white; border: none; padding: 10px; border-radius: 5px; }
+    </style>
+""", unsafe_allow_html=True)
+
+# Pages
 def home_page():
-    st.title("Online Election System")
-    if st.button("Login"):
-        st.session_state["page"] = "login"
-        st.rerun()
-    if st.button("Register"):
-        st.session_state["page"] = "register"
-        st.rerun()
+    st.markdown("<h1 class='title'>🗳️ Online College Election Portal</h1>", unsafe_allow_html=True)
+    st.info("Welcome to the secure and transparent voting system.")
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("🔐 Login"):
+            st.session_state["page"] = "login"
+            st.rerun()
+    with col2:
+        if st.button("📝 Register"):
+            st.session_state["page"] = "register"
+            st.rerun()
 
-# Register
 def register_page():
-    st.title("Register")
-    username = st.text_input("Choose a Username")
-    password = st.text_input("Choose a Password", type="password")
-
+    st.markdown("<h2 class='subtitle'>New User Registration</h2>", unsafe_allow_html=True)
+    username = st.text_input("Username")
+    password = st.text_input("Password", type="password")
     if st.button("Register"):
         if not username or not password:
-            st.error("Both fields are required.")
+            st.warning("Please fill all fields.")
         elif add_user(username, password):
-            st.success("Registration successful! Please login.")
+            st.success("Registration successful. Please login.")
             st.session_state["page"] = "login"
             st.rerun()
         else:
-            st.error("Username already exists.")
-
-    if st.button("Back to Home"):
+            st.error("Username already taken.")
+    if st.button("⬅ Back"):
         st.session_state["page"] = "home"
         st.rerun()
 
-# Login
 def login_page():
-    st.title("Login")
+    st.markdown("<h2 class='subtitle'>User/Admin Login</h2>", unsafe_allow_html=True)
     username = st.text_input("Username")
     password = st.text_input("Password", type="password")
-
     if st.button("Login"):
         if username == "22QM1A6721" and password == "Sai7@99499":
             st.session_state["logged_in_user"] = username
             st.session_state["is_admin"] = True
             st.session_state["page"] = "admin"
-            st.success(f"Welcome Admin {username}!")
+            st.success("Welcome Admin!")
             st.rerun()
         elif authenticate_user(username, password):
             st.session_state["logged_in_user"] = username
             st.session_state["is_admin"] = False
             st.session_state["page"] = "user"
-            st.success(f"Welcome, {username}!")
+            st.success("Login successful.")
             st.rerun()
         else:
-            st.error("Invalid username or password")
-
-    if st.button("Back to Home"):
+            st.error("Invalid credentials.")
+    if st.button("⬅ Back"):
         st.session_state["page"] = "home"
         st.rerun()
 
-# Admin Panel
 def admin_panel():
-    st.title("Admin Panel")
-
-    st.subheader("Add Parties")
-    new_party = st.text_input("Enter Party Name")
+    st.markdown("<h2 class='subtitle'>Admin Dashboard</h2>", unsafe_allow_html=True)
+    new_party = st.text_input("Add Party Name")
     if st.button("Add Party"):
-        if new_party:
-            if add_party(new_party):
-                st.success(f"Party '{new_party}' added successfully!")
-            else:
-                st.error("Party already exists.")
+        if add_party(new_party):
+            st.success(f"'{new_party}' added.")
         else:
-            st.error("Party name cannot be empty")
-
-    st.write("### Current Parties:")
+            st.warning("Party already exists.")
+    st.write("### Registered Parties:")
     st.write(get_parties())
-
-    st.subheader("Users Registered")
-    users = get_all_users()
-    st.write(pd.DataFrame(users, columns=["Username", "Voted? (1 = Yes, 0 = No)"]))
-
-    st.subheader("Control Result Announcement")
-    result_date = st.text_input("Enter result announcement date (YYYY-MM-DD)", st.session_state["result_date"])
-    if st.button("Schedule Result Date"):
-        st.session_state["result_date"] = result_date
-        st.success(f"Results will be announced on {result_date}")
-    if st.button("Release Results Now"):
+    st.write("### Registered Users:")
+    df = pd.DataFrame(get_all_users(), columns=["Username", "Voted"])
+    st.dataframe(df)
+    st.text_input("Set Result Date (YYYY-MM-DD)", value=st.session_state["result_date"], key="result_date")
+    if st.button("Release Results"):
         st.session_state["results_released"] = True
-        st.success("Results released to users.")
-
-    st.subheader("Live Results")
-    results = get_results()
-    if results:
-        df = pd.DataFrame(results, columns=["Party", "Votes"])
-        st.table(df)
-    else:
-        st.write("No voting data available.")
-
-    if st.button("Logout"):
-        st.session_state["logged_in_user"] = None
-        st.session_state["is_admin"] = False
-        st.session_state["page"] = "home"
-        st.rerun()
-
-# User Panel
-def user_panel():
-    st.title("User Panel")
-    username = st.session_state["logged_in_user"]
-
-    voted = has_voted(username)
-    status_color = "green" if voted else "red"
-    st.markdown(f"**Status:** <span style='color:{status_color}'>{'Voted' if voted else 'Not Voted'}</span>", unsafe_allow_html=True)
-
-    if not voted:
-        st.subheader("Cast Your Vote")
-        parties = get_parties()
-        if parties:
-            selected_party = st.selectbox("Select a Party", parties)
-            if st.button("Vote"):
-                if cast_vote(username, selected_party):
-                    st.success("Your vote has been successfully recorded.")
-                    st.rerun()
-                else:
-                    st.error("You have already voted.")
-        else:
-            st.warning("No parties available for voting.")
-
+        st.success("Results made public.")
     if st.session_state["results_released"]:
-        st.subheader("Election Results")
+        st.write("### Voting Results")
         results = get_results()
-        df = pd.DataFrame(results, columns=["Party", "Votes"])
-        st.table(df)
-    elif st.session_state["result_date"]:
-        st.info(f"Results will be announced on: {st.session_state['result_date']}")
-
+        if results:
+            st.dataframe(pd.DataFrame(results, columns=["Party", "Votes"]))
     if st.button("Logout"):
+        st.session_state["page"] = "home"
         st.session_state["logged_in_user"] = None
         st.session_state["is_admin"] = False
-        st.session_state["page"] = "home"
         st.rerun()
 
-# Router
+def user_panel():
+    st.markdown("<h2 class='subtitle'>Voter Panel</h2>", unsafe_allow_html=True)
+    username = st.session_state["logged_in_user"]
+    voted = has_voted(username)
+    status = "✅ Voted" if voted else "❌ Not Voted"
+    color = "green" if voted else "red"
+    st.markdown(f"**Status:** <span style='color:{color}'>{status}</span>", unsafe_allow_html=True)
+    if not voted:
+        options = get_parties()
+        if options:
+            choice = st.selectbox("Select Party to Vote", options)
+            if st.button("Submit Vote"):
+                if cast_vote(username, choice):
+                    st.success("Vote Recorded!")
+                    st.rerun()
+        else:
+            st.warning("No parties available.")
+    if st.session_state["results_released"]:
+        st.write("### Live Results")
+        st.dataframe(pd.DataFrame(get_results(), columns=["Party", "Votes"]))
+    elif st.session_state["result_date"]:
+        st.info(f"Results scheduled for {st.session_state['result_date']}")
+    if st.button("Logout"):
+        st.session_state["page"] = "home"
+        st.session_state["logged_in_user"] = None
+        st.session_state["is_admin"] = False
+        st.rerun()
+
+# Routing
 if st.session_state["logged_in_user"] is None:
     if st.session_state["page"] == "home":
         home_page()
