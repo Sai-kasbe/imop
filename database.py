@@ -1,78 +1,82 @@
 import sqlite3
-import os
 
-DB_NAME = "voting.db"
+# Connect to SQLite database
+conn = sqlite3.connect('voting_app.db', check_same_thread=False)
+cursor = conn.cursor()
 
-def get_connection():
-    conn = sqlite3.connect(DB_NAME)
-    cursor = conn.cursor()
-    return conn, cursor
-
+# === Create Tables ===
 def create_tables():
-    conn, cursor = get_connection()
-    
-    cursor.execute('''CREATE TABLE IF NOT EXISTS users (
-        roll_no TEXT PRIMARY KEY,
-        name TEXT,
-        password TEXT,
-        email TEXT,
-        phone TEXT,
-        image TEXT,
-        has_voted INTEGER DEFAULT 0
-    )''')
-
-    cursor.execute('''CREATE TABLE IF NOT EXISTS candidates (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        name TEXT,
-        role TEXT,
-        image TEXT,
-        votes INTEGER DEFAULT 0
-    )''')
-
-    cursor.execute('''CREATE TABLE IF NOT EXISTS results (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        declared INTEGER DEFAULT 0
-    )''')
-
-    cursor.execute('''CREATE TABLE IF NOT EXISTS vote_hashes (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        roll_no TEXT,
-        candidate TEXT,
-        hash TEXT
-    )''')
-
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS users (
+            roll_no TEXT PRIMARY KEY,
+            password TEXT NOT NULL,
+            name TEXT,
+            email TEXT,
+            phone TEXT,
+            image TEXT,
+            has_voted INTEGER DEFAULT 0
+        )
+    ''')
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS parties (
+            name TEXT PRIMARY KEY,
+            votes INTEGER DEFAULT 0
+        )
+    ''')
     conn.commit()
-    conn.close()
 
-def add_user(roll_no, name, password, email, phone, image):
-    conn, cursor = get_connection()
-    cursor.execute("INSERT INTO users (roll_no, name, password, email, phone, image) VALUES (?, ?, ?, ?, ?, ?)",
-                   (roll_no, name, password, email, phone, image))
+# === User Management ===
+def add_user(roll_no, password, name, email, phone, image_path):
+    try:
+        cursor.execute('''
+            INSERT INTO users (roll_no, password, name, email, phone, image)
+            VALUES (?, ?, ?, ?, ?, ?)
+        ''', (roll_no, password, name, email, phone, image_path))
+        conn.commit()
+        return True
+    except sqlite3.IntegrityError:
+        return False
+
+def authenticate_user(roll_no, password):
+    cursor.execute('SELECT * FROM users WHERE roll_no=? AND password=?', (roll_no, password))
+    return cursor.fetchone() is not None
+
+def update_password_by_email(email, new_password):
+    cursor.execute('UPDATE users SET password=? WHERE email=?', (new_password, email))
     conn.commit()
-    conn.close()
 
-def get_user(roll_no, password):
-    conn, cursor = get_connection()
-    cursor.execute("SELECT * FROM users WHERE roll_no=? AND password=?", (roll_no, password))
-    user = cursor.fetchone()
-    conn.close()
-    return user
+# === Voting Functionality ===
+def add_party(name):
+    try:
+        cursor.execute('INSERT INTO parties (name) VALUES (?)', (name,))
+        conn.commit()
+        return True
+    except sqlite3.IntegrityError:
+        return False
 
-def add_candidate(name, role, image):
-    conn, cursor = get_connection()
-    cursor.execute("INSERT INTO candidates (name, role, image) VALUES (?, ?, ?)", (name, role, image))
+def get_parties():
+    cursor.execute('SELECT name FROM parties')
+    return [row[0] for row in cursor.fetchall()]
+
+def cast_vote(roll_no, party_name):
+    cursor.execute('SELECT has_voted FROM users WHERE roll_no=?', (roll_no,))
+    result = cursor.fetchone()
+    if result and result[0] == 1:
+        return False  # Already voted
+    cursor.execute('UPDATE parties SET votes = votes + 1 WHERE name=?', (party_name,))
+    cursor.execute('UPDATE users SET has_voted = 1 WHERE roll_no=?', (roll_no,))
     conn.commit()
-    conn.close()
+    return True
 
-def get_all_candidates():
-    conn, cursor = get_connection()
-    cursor.execute("SELECT * FROM candidates")
-    rows = cursor.fetchall()
-    conn.close()
-    return rows
+def has_voted(roll_no):
+    cursor.execute('SELECT has_voted FROM users WHERE roll_no=?', (roll_no,))
+    result = cursor.fetchone()
+    return result and result[0] == 1
 
-def record_vote_hash(roll_no, candidate, hash):
-    conn, cursor = get_connection()
-    cursor.execute("INSERT INTO vote_hashes (roll_no, candidate, hash) VALUES (?, ?, ?)", (roll_no, candidate, hash))
-    conn.commit()
-    conn.close()
+def get_results():
+    cursor.execute('SELECT name, votes FROM parties ORDER BY votes DESC')
+    return cursor.fetchall()
+
+def get_all_users():
+    cursor.execute('SELECT roll_no, has_voted FROM users')
+    return cursor.fetchall()
