@@ -116,15 +116,25 @@ ADMIN_PASS = hash_password("Sai7@99499")
 # ====== USER LOGIN ======
 def user_login():
     st.subheader("👨‍🎓 User Login")
+    
+    # Input fields for user login
     roll_no = st.text_input("Roll Number")
     password = st.text_input("Password", type="password")
+    
     if st.button("Login"):
+        if not roll_no or not password:
+            st.warning("Please enter both Roll Number and Password.")
+            return
+        
+        # Authenticate the user from database
         user = authenticate_user(roll_no, password)
         if user:
-            st.session_state.page = "user_dashboard"
+            st.success(f"Welcome, {user['name']}!")
+            st.session_state.user_logged_in = True
             st.session_state.user_data = user
+            st.rerun()  # Refresh the app state to load the dashboard
         else:
-            st.error("Invalid credentials!")
+            st.error("Invalid credentials. Please check your Roll Number or Password.")
 
 def user_dashboard():
     user = st.session_state.user_data
