@@ -1,187 +1,216 @@
 import streamlit as st
-import sqlite3
-import database as db
-from PIL import Image
-import random
-import smtplib
-import os
 import pandas as pd
+import os
+from database import *
+from otp_utils import generate_otp, send_otp_email
 
-# Session State Initialization
-if "user" not in st.session_state:
-    st.session_state.user = None
-if "admin_logged_in" not in st.session_state:
-    st.session_state.admin_logged_in = False
+# Create required directories
+os.makedirs("images", exist_ok=True)
 
-# Set page config
-st.set_page_config(page_title="College Voting System", layout="centered")
+# Initialize DB
+create_tables()
 
-def send_otp(email):
-    otp = str(random.randint(100000, 999999))
-    server = smtplib.SMTP('smtp.gmail.com', 587)
-    server.starttls()
-    server.login("youremail@example.com", "yourapppassword")  # Use app-specific password
-    message = f"Your OTP for password reset is: {otp}"
-    server.sendmail("youremail@example.com", email, message)
-    server.quit()
-    return otp
+# Session State Setup
+for key, default in {
+    "page": "home",
+    "logged_in_user": None,
+    "is_admin": False,
+    "results_released": False,
+    "otp_code": "",
+    "result_date": ""
+}.items():
+    if key not in st.session_state:
+        st.session_state[key] = default
 
-def admin_login():
-    st.subheader("Admin Login")
-    username = st.text_input("Username")
-    password = st.text_input("Password", type='password')
-    if st.button("Login"):
-        if username == "22QM1A6721" and password == "Sai7@99499":
-            st.session_state.admin_logged_in = True
-            st.success("Logged in as Admin")
-        else:
-            st.error("Invalid admin credentials")
+# === Styling ===
+st.markdown("""
+<style>
+.title { text-align:center; color:#f0f0f0; font-size:40px; }
+body { background-color: #0f1117; }
+.block { background: #263238; padding: 20px; border-radius: 10px; }
+</style>
+""", unsafe_allow_html=True)
 
-def admin_panel():
-    st.title("Admin Dashboard")
+# === Home Page ===
+def home_page():
+    st.markdown("<h1 class='title'>🗳️ College Voting System</h1>", unsafe_allow_html=True)
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        if st.button("🛡️ Admin Login"):
+            st.session_state.page = "admin_login"
+    with col2:
+        if st.button("👤 User Login"):
+            st.session_state.page = "login"
+    with col3:
+        if st.button("📝 Register"):
+            st.session_state.page = "register"
 
-    menu = ["Add Candidate", "Schedule/Announce Results", "View Voters", "Logout"]
-    choice = st.sidebar.selectbox("Menu", menu)
-
-    if choice == "Add Candidate":
-        st.subheader("Add Candidate")
-        name = st.text_input("Candidate Name")
-        role = st.selectbox("Position", ["President", "Vice President", "Secretary"])
-        image = st.file_uploader("Upload Candidate Image", type=["png", "jpg", "jpeg"])
-        if st.button("Add Candidate"):
-            if name and image:
-                img_path = os.path.join("uploads", image.name)
-                with open(img_path, "wb") as f:
-                    f.write(image.read())
-                db.add_candidate(name, role, img_path)
-                st.success("Candidate Added Successfully!")
-            else:
-                st.error("Name and Image are required.")
-
-    elif choice == "Schedule/Announce Results":
-        st.subheader("Voting Results")
-        role = st.selectbox("Select Role", ["President", "Vice President", "Secretary"])
-        if st.button("Show Results"):
-            results = db.get_results(role)
-            if results.empty:
-                st.warning("No votes recorded for this role yet.")
-            else:
-                st.bar_chart(data=results.set_index("candidate_name")["vote_count"])
-
-    elif choice == "View Voters":
-        st.subheader("Registered Voters")
-        voters = db.get_all_voters()
-        st.dataframe(voters)
-
-    elif choice == "Logout":
-        st.session_state.admin_logged_in = False
-        st.success("Logged out successfully.")
-
-def user_registration():
-    st.subheader("User Registration")
-    roll_no = st.text_input("Roll Number")
+# === Registration with OTP ===
+def register_page():
+    st.markdown("### 🔐 User Registration")
     name = st.text_input("Full Name")
+    roll_no = st.text_input("Roll Number (Username)")
     password = st.text_input("Password", type="password")
     email = st.text_input("Email")
     phone = st.text_input("Phone Number")
     image = st.file_uploader("Upload Photo", type=["jpg", "jpeg", "png"])
 
-    if st.button("Register"):
-        if roll_no and name and password and email and phone and image:
-            img_path = os.path.join("uploads", image.name)
-            with open(img_path, "wb") as f:
-                f.write(image.read())
-            if db.register_user(roll_no, name, password, email, phone, img_path):
-                st.success("Registration successful! Please log in.")
+    if st.button("Send OTP"):
+        if name and roll_no and password and email and phone and image:
+            otp = generate_otp()
+            st.session_state.otp_code = otp
+            st.session_state.temp_user = {
+                "roll_no": roll_no, "name": name, "password": password,
+                "email": email, "phone": phone, "image": image
+            }
+            result = send_otp_email(email, otp)
+            if result is True:
+                st.success("OTP sent to your email.")
             else:
-                st.warning("User already exists!")
+                st.error(f"Error sending email: {result}")
         else:
-            st.error("All fields are required.")
+            st.warning("Fill all fields before requesting OTP.")
 
-def user_login():
+    entered = st.text_input("Enter OTP to complete registration")
+    if st.button("Verify & Register"):
+        if entered == st.session_state.otp_code:
+            data = st.session_state.temp_user
+            image_path = f"images/{data['roll_no']}.jpg"
+            with open(image_path, "wb") as f:
+                f.write(data["image"].getbuffer())
+            if add_user(data["roll_no"], data["password"], data["name"], data["email"], data["phone"], image_path):
+                st.success("User registered successfully!")
+                st.session_state.page = "login"
+            else:
+                st.error("User already exists.")
+        else:
+            st.error("Invalid OTP.")
+
+    if st.button("⬅ Back"):
+        st.session_state.page = "home"
+
+# === Login Page ===
+def login_page():
     st.subheader("User Login")
-    roll_no = st.text_input("Roll Number")
+    username = st.text_input("Username")
     password = st.text_input("Password", type="password")
+
     if st.button("Login"):
-        user = db.validate_user(roll_no, password)
-        if user:
-            st.session_state.user = user
-            st.success(f"Welcome, {user[1]}!")
+        if authenticate_user(username, password):
+            st.session_state.logged_in_user = username
+            st.session_state.is_admin = False
+            st.session_state.page = "user"
+            st.success("Login successful")
         else:
             st.error("Invalid credentials")
 
-def forgot_password():
-    st.subheader("Forgot Password")
-    roll_no = st.text_input("Enter your Roll Number")
-    user = db.get_user_by_roll(roll_no)
-    if user:
-        email = user[3]
-        if st.button("Send OTP"):
-            otp = send_otp(email)
-            user_otp = st.text_input("Enter the OTP sent to your email")
-            new_pass = st.text_input("Enter New Password", type="password")
-            if st.button("Reset Password"):
-                if user_otp == otp:
-                    db.update_password(roll_no, new_pass)
-                    st.success("Password reset successfully")
-                else:
-                    st.error("Invalid OTP")
-    else:
-        st.warning("Roll number not found.")
+    if st.button("Forgot Password?"):
+        st.session_state.page = "forgot_password"
 
-def user_dashboard():
-    st.title("User Dashboard")
-    user = st.session_state.user
-    st.image(user[6], width=150)
-    st.write(f"**Name:** {user[1]}")
-    st.write(f"**Roll Number:** {user[0]}")
-    st.write(f"**Phone:** {user[4]}")
+    if st.button("⬅ Back"):
+        st.session_state.page = "home"
 
-    if not db.has_user_voted(user[0]):
-        st.subheader("Cast Your Vote")
-        role = st.selectbox("Select Role to Vote", ["President", "Vice President", "Secretary"])
-        candidates = db.get_candidates(role)
-        if not candidates.empty:
-            selected = st.radio("Select your candidate:", candidates['candidate_name'].tolist())
-            if st.button("Vote"):
-                candidate_id = candidates[candidates['candidate_name'] == selected].iloc[0]['id']
-                db.cast_vote(candidate_id, user[0])
-                st.success("Your vote has been recorded.")
+# === Admin Login ===
+def admin_login():
+    st.subheader("Admin Login")
+    username = st.text_input("Admin ID")
+    password = st.text_input("Admin Password", type="password")
+
+    if st.button("Login"):
+        if username == "22QM1A6721" and password == "Sai7@99499":
+            st.session_state.logged_in_user = username
+            st.session_state.is_admin = True
+            st.session_state.page = "admin"
+            st.success("Admin login successful")
         else:
-            st.info("No candidates found for this role.")
-    else:
-        st.success("You have already voted.")
+            st.error("Invalid admin credentials")
+
+    if st.button("⬅ Back"):
+        st.session_state.page = "home"
+
+# === Forgot Password with OTP ===
+def forgot_password_page():
+    st.subheader("Forgot Password")
+    email = st.text_input("Enter registered email")
+
+    if st.button("Send OTP"):
+        otp = generate_otp()
+        st.session_state.otp_code = otp
+        st.session_state.reset_email = email
+        result = send_otp_email(email, otp)
+        if result is True:
+            st.success("OTP sent.")
+        else:
+            st.error(f"Email error: {result}")
+
+    entered = st.text_input("Enter OTP")
+    new_pass = st.text_input("New Password", type="password")
+    if st.button("Reset Password"):
+        if entered == st.session_state.otp_code:
+            update_password_by_email(st.session_state.reset_email, new_pass)
+            st.success("Password updated.")
+            st.session_state.page = "login"
+        else:
+            st.error("Incorrect OTP")
+
+# === Admin Panel ===
+def admin_panel():
+    st.subheader("Admin Dashboard")
+    party = st.text_input("Add New Party Name")
+    if st.button("Add Party"):
+        if add_party(party):
+            st.success("Party added.")
+        else:
+            st.warning("Already exists.")
+
+    st.write("### All Users")
+    users = get_all_users()
+    df = pd.DataFrame(users, columns=["Roll No", "Has Voted"])
+    df["Has Voted"] = df["Has Voted"].apply(lambda x: "✅" if x else "❌")
+    st.dataframe(df)
+
+    st.write("### Voting Results")
+    if st.button("Release Results"):
+        st.session_state.results_released = True
+    if st.session_state.results_released:
+        st.dataframe(pd.DataFrame(get_results(), columns=["Party", "Votes"]))
 
     if st.button("Logout"):
-        st.session_state.user = None
-        st.success("Logged out successfully")
+        st.session_state.logged_in_user = None
+        st.session_state.page = "home"
 
-def main():
-    st.title("🗳️ College Voting System")
+# === User Panel ===
+def user_panel():
+    st.subheader("Welcome Voter")
+    user = st.session_state.logged_in_user
+    voted = has_voted(user)
+    st.markdown(f"**Voting Status:** {'✅ Voted' if voted else '❌ Not Voted'}", unsafe_allow_html=True)
 
-    menu = ["Home", "Admin", "User Login", "Register", "Forgot Password"]
-    choice = st.sidebar.selectbox("Navigation", menu)
+    if not voted:
+        options = get_parties()
+        choice = st.selectbox("Choose a Party", options)
+        if st.button("Vote"):
+            if cast_vote(user, choice):
+                st.success("Vote casted!")
+            else:
+                st.warning("Already voted")
 
-    if choice == "Home":
-        st.markdown("Welcome to the secure and fair **College Voting System**. Cast your votes safely and make your voice count!")
+    if st.session_state.results_released:
+        st.dataframe(pd.DataFrame(get_results(), columns=["Party", "Votes"]))
 
-    elif choice == "Admin":
-        if st.session_state.admin_logged_in:
-            admin_panel()
-        else:
-            admin_login()
+    if st.button("Logout"):
+        st.session_state.logged_in_user = None
+        st.session_state.page = "home"
 
-    elif choice == "User Login":
-        if st.session_state.user:
-            user_dashboard()
-        else:
-            user_login()
-
-    elif choice == "Register":
-        user_registration()
-
-    elif choice == "Forgot Password":
-        forgot_password()
-
-if __name__ == "__main__":
-    main()
+# === Routing ===
+if st.session_state.logged_in_user is None:
+    pages = {
+        "home": home_page,
+        "login": login_page,
+        "admin_login": admin_login,
+        "register": register_page,
+        "forgot_password": forgot_password_page
+    }
+    pages[st.session_state.page]()
+else:
+    admin_panel() if st.session_state.is_admin else user_panel()
