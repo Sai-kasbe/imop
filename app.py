@@ -1,223 +1,100 @@
 import streamlit as st
-import pandas as pd
+import sqlite3
+from werkzeug.security import generate_password_hash, check_password_hash
+import smtplib
+import random
 import os
-from database import *
-from otp_utils import generate_otp, send_otp_email
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 
-# Create required directories
-os.makedirs("images", exist_ok=True)
+# Initialize session state for page navigation
+if 'page' not in st.session_state:
+    st.session_state.page = 'login'  # Default page
 
-# Initialize DB
-create_tables()
-
-# Session State Setup
-for key, default in {
-    "page": "home",
-    "logged_in_user": None,
-    "is_admin": False,
-    "results_released": False,
-    "otp_code": "",
-    "result_date": ""
-}.items():
-    if key not in st.session_state:
-        st.session_state[key] = default
-
-# === Styling ===
-st.markdown("""
-<style>
-.title { text-align:center; color:#f0f0f0; font-size:40px; }
-body { background-color: #0f1117; }
-.block { background: #263238; padding: 20px; border-radius: 10px; }
-</style>
-""", unsafe_allow_html=True)
-
+# Page functions (replace with your actual page functions)
 def home_page():
-    st.markdown("<h1 class='title'>Online College Election Portal</h1>", unsafe_allow_html=True)
-    st.info("Welcome to the secure and transparent voting system.")
+    st.title("Home Page")
+    st.write("Welcome to the College Voting System!")
     
-    col1, col2 = st.columns(2)
-    with col1:
-        if st.button("🔐 Admin Login"):
-            st.session_state["page"] = "login_admin"
-            st.rerun()
-    with col2:
-        if st.button("👤 User Login"):
-            st.session_state["page"] = "login_user"
-            st.rerun()
-    
-    st.markdown("<br>", unsafe_allow_html=True)
-    
-    if st.button("📝 Register as User"):
-        st.session_state["page"] = "register"
-        st.rerun()
-
-
-# === Registration with OTP ===
-def register_page():
-    st.markdown("### 🔐 User Registration")
-    name = st.text_input("Full Name")
-    roll_no = st.text_input("Roll Number (Username)")
-    password = st.text_input("Password", type="password")
-    email = st.text_input("Email")
-    phone = st.text_input("Phone Number")
-    image = st.file_uploader("Upload Photo", type=["jpg", "jpeg", "png"])
-
-    if st.button("Send OTP"):
-        if name and roll_no and password and email and phone and image:
-            otp = generate_otp()
-            st.session_state.otp_code = otp
-            st.session_state.temp_user = {
-                "roll_no": roll_no, "name": name, "password": password,
-                "email": email, "phone": phone, "image": image
-            }
-            result = send_otp_email(email, otp)
-            if result is True:
-                st.success("OTP sent to your email.")
-            else:
-                st.error(f"Error sending email: {result}")
-        else:
-            st.warning("Fill all fields before requesting OTP.")
-
-    entered = st.text_input("Enter OTP to complete registration")
-    if st.button("Verify & Register"):
-        if entered == st.session_state.otp_code:
-            data = st.session_state.temp_user
-            image_path = f"images/{data['roll_no']}.jpg"
-            with open(image_path, "wb") as f:
-                f.write(data["image"].getbuffer())
-            if add_user(data["roll_no"], data["password"], data["name"], data["email"], data["phone"], image_path):
-                st.success("User registered successfully!")
-                st.session_state.page = "login"
-            else:
-                st.error("User already exists.")
-        else:
-            st.error("Invalid OTP.")
-
-    if st.button("⬅ Back"):
-        st.session_state.page = "home"
-
-# === Login Page ===
 def login_page():
-    st.subheader("User Login")
+    st.title("Login")
+    # Login form
     username = st.text_input("Username")
-    password = st.text_input("Password", type="password")
-
+    password = st.text_input("Password", type='password')
+    
     if st.button("Login"):
-        if authenticate_user(username, password):
-            st.session_state.logged_in_user = username
-            st.session_state.is_admin = False
-            st.session_state.page = "user"
-            st.success("Login successful")
+        user = authenticate_user(username, password)
+        if user:
+            st.session_state.page = 'dashboard'
         else:
-            st.error("Invalid credentials")
+            st.error("Invalid credentials, please try again.")
 
-    if st.button("Forgot Password?"):
-        st.session_state.page = "forgot_password"
+def dashboard_page():
+    st.title("User Dashboard")
+    st.write(f"Welcome, {st.session_state.user_name}!")
+    st.button("Logout", on_click=logout)
 
-    if st.button("⬅ Back"):
-        st.session_state.page = "home"
+def logout():
+    del st.session_state.page  # This will reset the session and go to the login page
 
-# === Admin Login ===
-def admin_login():
-    st.subheader("Admin Login")
-    username = st.text_input("Admin ID")
-    password = st.text_input("Admin Password", type="password")
+def authenticate_user(username, password):
+    conn = sqlite3.connect('database.db')
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM users WHERE username = ?", (username,))
+    user = cursor.fetchone()
+    conn.close()
+    if user and check_password_hash(user[1], password):  # Assuming password is stored in the second column
+        st.session_state.user_name = user[0]  # Store the user name
+        return True
+    return False
 
-    if st.button("Login"):
-        if username == "22QM1A6721" and password == "Sai7@99499":
-            st.session_state.logged_in_user = username
-            st.session_state.is_admin = True
-            st.session_state.page = "admin"
-            st.success("Admin login successful")
-        else:
-            st.error("Invalid admin credentials")
+# OTP Email Functionality
+def send_otp_email(to_email):
+    otp = random.randint(100000, 999999)
+    subject = "Your OTP for College Voting System"
+    body = f"Your OTP is {otp}"
+    
+    # Send email
+    sender_email = "your_email@example.com"
+    password = "your_password"
+    
+    msg = MIMEMultipart()
+    msg['From'] = sender_email
+    msg['To'] = to_email
+    msg['Subject'] = subject
+    msg.attach(MIMEText(body, 'plain'))
+    
+    try:
+        server = smtplib.SMTP('smtp.gmail.com', 587)
+        server.starttls()
+        server.login(sender_email, password)
+        text = msg.as_string()
+        server.sendmail(sender_email, to_email, text)
+        server.quit()
+        return otp
+    except Exception as e:
+        st.error(f"Error sending email: {e}")
+        return None
 
-    if st.button("⬅ Back"):
-        st.session_state.page = "home"
+# Image upload function
+def save_uploaded_image(uploaded_file):
+    if uploaded_file is not None:
+        file_path = os.path.join("images", uploaded_file.name)
+        with open(file_path, "wb") as f:
+            f.write(uploaded_file.getbuffer())
+        return file_path
+    return None
 
-# === Forgot Password with OTP ===
-def forgot_password_page():
-    st.subheader("Forgot Password")
-    email = st.text_input("Enter registered email")
+# Main App Logic
+pages = {
+    'login': login_page,
+    'home': home_page,
+    'dashboard': dashboard_page,
+}
 
-    if st.button("Send OTP"):
-        otp = generate_otp()
-        st.session_state.otp_code = otp
-        st.session_state.reset_email = email
-        result = send_otp_email(email, otp)
-        if result is True:
-            st.success("OTP sent.")
-        else:
-            st.error(f"Email error: {result}")
-
-    entered = st.text_input("Enter OTP")
-    new_pass = st.text_input("New Password", type="password")
-    if st.button("Reset Password"):
-        if entered == st.session_state.otp_code:
-            update_password_by_email(st.session_state.reset_email, new_pass)
-            st.success("Password updated.")
-            st.session_state.page = "login"
-        else:
-            st.error("Incorrect OTP")
-
-# === Admin Panel ===
-def admin_panel():
-    st.subheader("Admin Dashboard")
-    party = st.text_input("Add New Party Name")
-    if st.button("Add Party"):
-        if add_party(party):
-            st.success("Party added.")
-        else:
-            st.warning("Already exists.")
-
-    st.write("### All Users")
-    users = get_all_users()
-    df = pd.DataFrame(users, columns=["Roll No", "Has Voted"])
-    df["Has Voted"] = df["Has Voted"].apply(lambda x: "✅" if x else "❌")
-    st.dataframe(df)
-
-    st.write("### Voting Results")
-    if st.button("Release Results"):
-        st.session_state.results_released = True
-    if st.session_state.results_released:
-        st.dataframe(pd.DataFrame(get_results(), columns=["Party", "Votes"]))
-
-    if st.button("Logout"):
-        st.session_state.logged_in_user = None
-        st.session_state.page = "home"
-
-# === User Panel ===
-def user_panel():
-    st.subheader("Welcome Voter")
-    user = st.session_state.logged_in_user
-    voted = has_voted(user)
-    st.markdown(f"**Voting Status:** {'✅ Voted' if voted else '❌ Not Voted'}", unsafe_allow_html=True)
-
-    if not voted:
-        options = get_parties()
-        choice = st.selectbox("Choose a Party", options)
-        if st.button("Vote"):
-            if cast_vote(user, choice):
-                st.success("Vote casted!")
-            else:
-                st.warning("Already voted")
-
-    if st.session_state.results_released:
-        st.dataframe(pd.DataFrame(get_results(), columns=["Party", "Votes"]))
-
-    if st.button("Logout"):
-        st.session_state.logged_in_user = None
-        st.session_state.page = "home"
-
-# === Routing ===
-if st.session_state.logged_in_user is None:
-    pages = {
-        "home": home_page,
-        "login": login_page,
-        "admin_login": admin_login,
-        "register": register_page,
-        "forgot_password": forgot_password_page
-    }
+# Routing page based on session state
+if st.session_state.page in pages:
     pages[st.session_state.page]()
 else:
-    admin_panel() if st.session_state.is_admin else user_panel()
+    st.error("Page not found!")
+
