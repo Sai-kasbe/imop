@@ -50,7 +50,18 @@ def authenticate_user(roll_no, password):
         }
     return None
 
-# ====== INIT DB ======
+def add_user(roll_no, name, password, email, phone, image_path):
+    conn, cursor = get_connection()
+    try:
+        cursor.execute("INSERT INTO users (roll_no, name, password, email, phone, image) VALUES (?, ?, ?, ?, ?, ?)",
+                       (roll_no, name, hash_password(password), email, phone, image_path))
+        conn.commit()
+        return True
+    except sqlite3.IntegrityError:
+        return False
+    finally:
+        conn.close()
+
 def create_tables():
     conn, cursor = get_connection()
     cursor.execute('''CREATE TABLE IF NOT EXISTS users (
@@ -110,12 +121,13 @@ def user_login():
     if st.button("Login"):
         user = authenticate_user(roll_no, password)
         if user:
-            st.session_state.user_logged_in = True
+            st.session_state.page = "user_dashboard"
             st.session_state.user_data = user
         else:
             st.error("Invalid credentials!")
 
-def user_dashboard(user):
+def user_dashboard():
+    user = st.session_state.user_data
     st.header("🗳️ Vote Dashboard")
     if user['has_voted']:
         st.success("Status: ✅ VOTED")
@@ -130,6 +142,7 @@ def user_dashboard(user):
             conn.commit()
             record_vote_hash(user['roll_no'], selected)
             st.success("Vote Cast Successfully!")
+            st.session_state.user_data['has_voted'] = 1
 
 # ====== ADMIN LOGIN ======
 def admin_login():
@@ -138,7 +151,7 @@ def admin_login():
     password = st.text_input("Password", type="password")
     if st.button("Login"):
         if username == ADMIN_ID and hash_password(password) == ADMIN_PASS:
-            st.session_state.admin_logged_in = True
+            st.session_state.page = "admin_dashboard"
         else:
             st.error("Invalid admin credentials!")
 
@@ -228,7 +241,6 @@ def user_registration():
             with open(image_path, "wb") as f:
                 f.write(image.getbuffer())
 
-            from database import add_user  # Import the correct function
             success = add_user(roll_no, name, password, email, phone, image_path)
             if success:
                 st.success("Registered successfully!")
@@ -236,9 +248,6 @@ def user_registration():
                 st.error("User with this roll number already exists!")
         except Exception as e:
             st.error(f"Error: {e}")
-        finally:
-            pass
-            
 
 # ====== FORGOT PASSWORD ======
 def forgot_password():
@@ -258,30 +267,27 @@ def forgot_password():
 
 # ====== MAIN ======
 def main():
-    st.title("🏛️ KGRCET ONLINE ELECTION SYSTEM")
+    st.title("🏫 KGRCET ONLINE ELECTION SYSTEM")
     create_tables()
 
-    if "admin_logged_in" not in st.session_state:
-        st.session_state.admin_logged_in = False
-    if "user_logged_in" not in st.session_state:
-        st.session_state.user_logged_in = False
+    if "page" not in st.session_state:
+        st.session_state.page = "home"
 
-    if st.session_state.user_logged_in:
-        user_dashboard(st.session_state.user_data)
+    if st.session_state.page == "user_dashboard":
+        user_dashboard()
         if st.button("Logout"):
-            st.session_state.user_logged_in = False
+            st.session_state.page = "home"
             st.session_state.user_data = None
-            st.success("User logged out!")
+            st.success("Logged out!")
 
-    elif st.session_state.admin_logged_in:
+    elif st.session_state.page == "admin_dashboard":
         admin_dashboard()
         if st.button("Logout"):
-            st.session_state.admin_logged_in = False
+            st.session_state.page = "home"
             st.success("Admin logged out!")
 
     else:
         page = st.sidebar.selectbox("Choose Page", ["Home", "User Login", "Admin Login", "Register", "Forgot Password"])
-
         if page == "User Login":
             user_login()
         elif page == "Admin Login":
