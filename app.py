@@ -1,7 +1,6 @@
 import streamlit as st
 import sqlite3
 import database as db
-from PIL import Image
 import random
 import smtplib
 import os
