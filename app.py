@@ -1,6 +1,7 @@
 import streamlit as st
 import sqlite3
 import database as db
+from PIL import Image
 import random
 import smtplib
 import os
@@ -162,8 +163,7 @@ def main():
     choice = st.sidebar.selectbox("Navigation", menu)
 
     if choice == "Home":
-        st.image("https://img.freepik.com/free-vector/election-day-concept-illustration_114360-5844.jpg", use_container_width=True)
-        st.markdown("Welcome to the secure and fair College Voting System. Cast your votes safely!")
+        st.markdown("Welcome to the secure and fair **College Voting System**. Cast your votes safely and make your voice count!")
 
     elif choice == "Admin":
         if st.session_state.admin_logged_in:
