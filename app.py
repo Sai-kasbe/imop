@@ -31,19 +31,26 @@ body { background-color: #0f1117; }
 </style>
 """, unsafe_allow_html=True)
 
-# === Home Page ===
 def home_page():
-    st.markdown("<h1 class='title'>🗳️ College Voting System</h1>", unsafe_allow_html=True)
-    col1, col2, col3 = st.columns(3)
+    st.markdown("<h1 class='title'>Online College Election Portal</h1>", unsafe_allow_html=True)
+    st.info("Welcome to the secure and transparent voting system.")
+    
+    col1, col2 = st.columns(2)
     with col1:
-        if st.button("🛡️ Admin Login"):
-            st.session_state.page = "admin_login"
+        if st.button("🔐 Admin Login"):
+            st.session_state["page"] = "login_admin"
+            st.rerun()
     with col2:
         if st.button("👤 User Login"):
-            st.session_state.page = "login"
-    with col3:
-        if st.button("📝 Register"):
-            st.session_state.page = "register"
+            st.session_state["page"] = "login_user"
+            st.rerun()
+    
+    st.markdown("<br>", unsafe_allow_html=True)
+    
+    if st.button("📝 Register as User"):
+        st.session_state["page"] = "register"
+        st.rerun()
+
 
 # === Registration with OTP ===
 def register_page():
