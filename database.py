@@ -23,6 +23,14 @@ def create_tables():
     """)
     conn.commit()
     conn.close()
+def ensure_roll_no_column():
+    conn, cursor = get_connection()
+    cursor.execute("PRAGMA table_info(users)")
+    columns = [col[1] for col in cursor.fetchall()]
+    if "roll_no" not in columns:
+        cursor.execute("ALTER TABLE users ADD COLUMN roll_no TEXT")
+        conn.commit()
+    conn.close()
 
 def add_user(roll_no, name, password, email, phone, image):
     """Add a new user to the users table with all required fields."""
